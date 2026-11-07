@@ -1,10 +1,20 @@
+using lan_box_party_pack.server.Hubs;
+using lan_box_party_pack.server.Game;
+using lan_box_party_pack.server.Players;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+builder.Services.AddSignalR();
+
+builder.Services.AddSingleton<PlayerManager>();
+builder.Services.AddSingleton<GameManager>();
 
 var app = builder.Build();
+    
+app.MapHub<PartyHub>("/partyHub");
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -14,28 +24,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+app.MapGet("/", () => "lan-box-party-pack server is running.");
+app.MapGet("/livez", () => Results.Ok());
+app.MapGet("/readyz", () => Results.Ok());
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}

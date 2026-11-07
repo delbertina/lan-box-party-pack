@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { HubConnection, HubConnectionBuilder } from '@microsoft/signalr'
+import { playerColors } from './lib/playerColors'
+import { createPlayerId, PLAYER_PROFILE_KEY } from './lib/utils'
+import type { SavedPlayerProfile } from './lib/utils'
+import {
+  HubConnection,
+  HubConnectionBuilder
+} from '@microsoft/signalr'
 
-const ROOM_CODE = 'test-room'
+import type { RoomSnapshot } from './lib/types'
 
 function App() {
   const isHost = window.location.pathname === '/host'
@@ -10,9 +16,12 @@ function App() {
 
   const [connected, setConnected] = useState(false)
   const [playerName, setPlayerName] = useState('')
+  const [playerColor, setPlayerColor] = useState<string>(
+    playerColors[14].hex
+  )
   const [joined, setJoined] = useState(false)
-  const [players, setPlayers] = useState<string[]>([])
-  const [presses, setPresses] = useState<string[]>([])
+
+  const [room, setRoom] = useState<RoomSnapshot | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -21,21 +30,50 @@ function App() {
       .withAutomaticReconnect()
       .build()
 
+    restorePlayer()
+
+    async function restorePlayer() {
+      const savedProfile = localStorage.getItem(PLAYER_PROFILE_KEY)
+
+      if (!savedProfile) return
+
+      try {
+        const profile: SavedPlayerProfile = JSON.parse(savedProfile)
+
+        if (!profile.playerId || !profile.name || !profile.color) {
+          return
+        }
+
+        setPlayerName(profile.name)
+        setPlayerColor(profile.color)
+
+        await connection.invoke(
+          'JoinRoom',
+          profile.playerId,
+          profile.name,
+          profile.color
+        )
+
+        setJoined(true)
+      } catch (err) {
+        console.error('Could not restore player:', err)
+        setError('Could not automatically rejoin. Please join manually.')
+      }
+    }
+
     connectionRef.current = connection
 
-    connection.on('PlayerJoined', (name: string) => {
-      setPlayers(current => [...current, name])
+    connection.on('RoomUpdated', (snapshot: RoomSnapshot) => {
+      setRoom(snapshot)
     })
 
-    connection.on('PlayerPressed', (name: string) => {
-      setPresses(current => [name, ...current])
-    })
-
-    connection.onreconnected(() => {
+    connection.onreconnected(async () => {
       setConnected(true)
 
       if (isHost) {
-        connection.invoke('JoinRoom', ROOM_CODE, 'Host')
+        await connection.invoke('WatchRoom')
+      } else {
+        await restorePlayer()
       }
     })
 
@@ -45,7 +83,9 @@ function App() {
         setConnected(true)
 
         if (isHost) {
-          await connection.invoke('JoinRoom', ROOM_CODE, 'Host')
+          await connection.invoke('WatchRoom')
+        } else {
+          await restorePlayer()
         }
       })
       .catch(err => {
@@ -62,29 +102,49 @@ function App() {
     if (!playerName.trim()) return
 
     try {
+      let playerId = localStorage.getItem('partyGamePlayerId')
+
+      if (!playerId) {
+        playerId = createPlayerId()
+        localStorage.setItem('partyGamePlayerId', playerId)
+      }
+
+
       await connectionRef.current?.invoke(
         'JoinRoom',
-        ROOM_CODE,
-        playerName.trim()
+        playerId,
+        playerName.trim(),
+        playerColor
+      )
+
+      const profile: SavedPlayerProfile = {
+        playerId,
+        name: playerName.trim(),
+        color: playerColor
+      }
+
+      localStorage.setItem(
+        PLAYER_PROFILE_KEY,
+        JSON.stringify(profile)
       )
 
       setJoined(true)
     } catch (err) {
-      console.error(err)
-      setError('Could not join the game.')
+      console.error('Join failed:', err)
+      setError(
+        err instanceof Error
+          ? `Could not join: ${err.message}`
+          : `Could not join: ${String(err)}`
+      )
     }
   }
 
-  async function pressButton() {
+  async function startNewGame() {
     try {
-      await connectionRef.current?.invoke(
-        'PressButton',
-        ROOM_CODE,
-        playerName.trim()
-      )
+      await connectionRef.current?.invoke('StartNewGame')
     } catch (err) {
       console.error(err)
-      setError('Could not send your button press.')
+      setError('Could not start the game.')
     }
   }
 
@@ -94,19 +154,40 @@ function App() {
         <h1>LAN Box Party Pack</h1>
         <h2>Host screen</h2>
 
-        <p>Connection: {connected ? 'Connected' : 'Connecting...'}</p>
+        <p>
+          Connection: {connected ? 'Connected' : 'Connecting...'}
+        </p>
 
-        <h2>Players ({players.length})</h2>
-        {players.map((player, index) => (
-          <p key={index}>{player} joined!</p>
-        ))}
+        <h2>
+          Players ({room?.players.length ?? 0})
+        </h2>
 
-        <h2>Button presses ({presses.length})</h2>
-        {presses.map((player, index) => (
-          <p key={index}>
-            {player} pressed the button!
+        {room?.players.map(player => (
+          <p key={player.id}>
+            <span
+              style={{
+                display: 'inline-block',
+                width: 12,
+                height: 12,
+                backgroundColor: player.color,
+                borderRadius: '50%',
+                marginRight: 8
+              }}
+            />
+
+            {player.name} — {player.isConnected ? 'Connected' : 'Disconnected'}
           </p>
         ))}
+
+        <button
+          onClick={startNewGame}
+          disabled={!connected || (room?.players.length ?? 0) === 0}
+        >
+          Start new game
+        </button>
+
+        <h2>Game</h2>
+        <p>Phase: {room?.game.phase ?? 'Loading...'}</p>
 
         {error && <p>{error}</p>}
       </main>
@@ -117,7 +198,9 @@ function App() {
     <main>
       <h1>LAN Box Party Pack</h1>
 
-      <p>Connection: {connected ? 'Connected' : 'Connecting...'}</p>
+      <p>
+        Connection: {connected ? 'Connected' : 'Connecting...'}
+      </p>
 
       {!joined ? (
         <>
@@ -129,17 +212,61 @@ function App() {
             placeholder="Your name"
           />
 
-          <button onClick={joinGame} disabled={!connected}>
+          <div style={{ marginTop: 20 }}>
+            <h3>Choose your color</h3>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(8, minmax(0, 1fr))',
+                gap: 10,
+                maxWidth: 360
+              }}
+            >
+              {playerColors.map(color => (
+                <button
+                  key={color.hex}
+                  type="button"
+                  title={color.name}
+                  aria-label={color.name}
+                  aria-pressed={playerColor === color.hex}
+                  onClick={() => setPlayerColor(color.hex)}
+                  style={{
+                    width: '100%',
+                    aspectRatio: '1',
+                    backgroundColor: color.hex,
+                    borderRadius: '50%',
+                    border: playerColor === color.hex
+                      ? '4px solid #ffffff'
+                      : '2px solid #777777',
+                    outline: playerColor === color.hex
+                      ? '2px solid #333333'
+                      : 'none',
+                    cursor: 'pointer',
+                    padding: 0
+                  }}
+                />
+              ))}
+            </div>
+
+            <p>
+              Selected: {
+                playerColors.find(color => color.hex === playerColor)?.name
+              }
+            </p>
+          </div>
+
+          <button
+            onClick={joinGame}
+            disabled={!connected || !playerName.trim()}
+          >
             Join
           </button>
         </>
       ) : (
         <>
           <h2>You're in, {playerName}!</h2>
-
-          <button onClick={pressButton}>
-            PRESS ME!
-          </button>
+          <p>Waiting for the host to start a game...</p>
         </>
       )}
 

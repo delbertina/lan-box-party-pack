@@ -1,0 +1,6 @@
+@lan_box_party_pack.server_HostAddress = http://localhost:5271
+
+GET {{lan_box_party_pack.server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

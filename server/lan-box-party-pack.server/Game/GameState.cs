@@ -1,4 +1,6 @@
-﻿namespace lan_box_party_pack.server.Game
+﻿using lan_box_party_pack.server.Questions;
+
+namespace lan_box_party_pack.server.Game
 {
     public class GameState
     {
@@ -13,5 +15,20 @@
         public DateTimeOffset? PhaseEndsAt { get; set; }
 
         public Dictionary<string, int> Scores { get; set; } = new();
+
+        public int QuestionSetId { get; set; }
+
+        public string QuestionSetTitle { get; set; } = "";
+
+        public int TotalQuestions { get; set; }
+
+        public QuestionPrompt? CurrentQuestion { get; set; }
+
+        public GameSettings Settings { get; set; } = new();
+
+        // Only populated during the Reveal phase.
+        public string? RevealedAnswer { get; set; }
+
+        public string? RevealedAnswerSubtext { get; set; }
     }
 }

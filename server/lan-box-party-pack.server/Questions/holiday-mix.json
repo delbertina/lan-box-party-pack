@@ -1,0 +1,108 @@
+{
+  "id": 12,
+  "title": "2024 - (Testing) Holiday Mix",
+  "description": "Festive songs for the festive season!",
+  "rating": 1,
+  "questions": [
+    {
+      "questionText": "Question 1",
+      "questionVideo": {
+        "youTubeId": "9DlD7-TykIU",
+        "startTime": 20,
+        "endTime": 35
+      },
+      "answer": "O Holy Night",
+      "answerSubtext": "A festive classic"
+    },
+    {
+      "questionText": "Question 2",
+      "questionVideo": {
+        "youTubeId": "9DlD7-TykIU",
+        "startTime": 225,
+        "endTime": 240
+      },
+      "answer": "Silent Night",
+      "answerSubtext": ""
+    },
+    {
+      "questionText": "Question 3",
+      "questionVideo": {
+        "youTubeId": "9DlD7-TykIU",
+        "startTime": 370,
+        "endTime": 385
+      },
+      "answer": "Angels We Have Heard on High",
+      "answerSubtext": ""
+    },
+    {
+      "questionText": "Question 4",
+      "questionVideo": {
+        "youTubeId": "9DlD7-TykIU",
+        "startTime": 535,
+        "endTime": 550
+      },
+      "answer": "O Come All Ye Faithful",
+      "answerSubtext": ""
+    },
+    {
+      "questionText": "Question 5",
+      "questionVideo": {
+        "youTubeId": "2bvNZvGX7C0",
+        "startTime": 15,
+        "endTime": 30
+      },
+      "answer": "We Wish You a Merry Christmas",
+      "answerSubtext": ""
+    },
+    {
+      "questionText": "Question 6",
+      "questionVideo": {
+        "youTubeId": "2bvNZvGX7C0",
+        "startTime": 380,
+        "endTime": 395
+      },
+      "answer": "Deck the Halls",
+      "answerSubtext": ""
+    },
+    {
+      "questionText": "Question 7",
+      "questionVideo": {
+        "youTubeId": "G1Eq0f5mMVQ",
+        "startTime": 70,
+        "endTime": 85
+      },
+      "answer": "First Noel",
+      "answerSubtext": ""
+    },
+    {
+      "questionText": "Question 8",
+      "questionVideo": {
+        "youTubeId": "G1Eq0f5mMVQ",
+        "startTime": 590,
+        "endTime": 605
+      },
+      "answer": "Away in the Manger",
+      "answerSubtext": ""
+    },
+    {
+      "questionText": "Question 9",
+      "questionVideo": {
+        "youTubeId": "G1Eq0f5mMVQ",
+        "startTime": 1150,
+        "endTime": 1175
+      },
+      "answer": "Greensleeves",
+      "answerSubtext": ""
+    },
+    {
+      "questionText": "Question 10",
+      "questionVideo": {
+        "youTubeId": "G1Eq0f5mMVQ",
+        "startTime": 1890,
+        "endTime": 1905
+      },
+      "answer": "Joy to the World",
+      "answerSubtext": ""
+    }
+  ]
+}

@@ -1,6 +1,7 @@
-using lan_box_party_pack.server.Hubs;
 using lan_box_party_pack.server.Game;
+using lan_box_party_pack.server.Hubs;
 using lan_box_party_pack.server.Players;
+using lan_box_party_pack.server.Questions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +17,7 @@ builder.Services.AddSignalR().AddJsonProtocol(options =>
 
 builder.Services.AddSingleton<PlayerManager>();
 builder.Services.AddSingleton<GameManager>();
+builder.Services.AddSingleton<QuestionRepository>();
 
 var app = builder.Build();
     

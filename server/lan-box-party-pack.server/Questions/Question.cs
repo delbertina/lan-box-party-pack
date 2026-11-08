@@ -2,16 +2,12 @@
 {
     public class Question
     {
-        public string Id { get; set; } = "";
+        public string QuestionText { get; set; } = "";
 
-        public string VideoId { get; set; } = "";
+        public QuestionVideo QuestionVideo { get; set; } = new();
 
-        public double StartSeconds { get; set; }
+        public string Answer { get; set; } = "";
 
-        public double EndSeconds { get; set; }
-
-        public string CorrectAnswerId { get; set; } = "";
-
-        public string Category { get; set; } = "";
+        public string AnswerSubtext { get; set; } = "";
     }
 }

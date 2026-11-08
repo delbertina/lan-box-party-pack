@@ -9,6 +9,17 @@ export interface Player {
   isConnected: boolean
 }
 
+export interface QuestionVideo {
+  youTubeId: string
+  startTime: number
+  endTime: number
+}
+
+export interface QuestionPrompt {
+  questionText: string
+  questionVideo: QuestionVideo
+}
+
 export interface GameState {
   gameSessionId: string | null
   phase: string
@@ -16,9 +27,31 @@ export interface GameState {
   phaseStartedAt: string | null
   phaseEndsAt: string | null
   scores: Record<string, number>
+
+  questionSetId: number
+  questionSetTitle: string
+  totalQuestions: number
+  currentQuestion: QuestionPrompt | null
+
+  settings: {
+    guessingDurationSeconds: number
+    overtimeDurationSeconds: number
+    incorrectGuessLockoutMilliseconds: number
+  }
+
+  revealedAnswer: string | null
+  revealedAnswerSubtext: string | null
 }
 
 export interface RoomSnapshot {
   players: Player[]
   game: GameState
+}
+
+export interface AnswerSubmission {
+  playerId: string
+  playerName: string
+  playerColor: string
+  answer: string
+  isCorrect: boolean
 }

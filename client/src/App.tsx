@@ -7,7 +7,7 @@ import {
   HubConnectionBuilder
 } from '@microsoft/signalr'
 
-import type { AnswerSubmission, RoomSnapshot } from './lib/types'
+import type { AnswerSubmission, QuestionSetSummary, RoomSnapshot } from './lib/types'
 
 function App() {
   const isHost = window.location.pathname === '/host'
@@ -28,6 +28,9 @@ function App() {
   const [answer, setAnswer] = useState('')
   const [answerResult, setAnswerResult] = useState<AnswerSubmission | null>(null)
   const [playerAnswers, setPlayerAnswers] = useState<AnswerSubmission[]>([])
+
+  const [questionSets, setQuestionSets] = useState<QuestionSetSummary[]>([])
+  const [selectedQuestionSet, setSelectedQuestionSet] = useState('')
 
   const currentClipKey = room?.game.gameSessionId
     ? `${room.game.gameSessionId}-${room.game.currentQuestionIndex}`
@@ -125,6 +128,7 @@ function App() {
       try {
         if (isHost) {
           await connection.invoke('WatchRoom')
+          await loadQuestionSets()
         } else {
           await restorePlayer()
         }
@@ -145,6 +149,7 @@ function App() {
 
         if (isHost) {
           await connection.invoke('WatchRoom')
+          await loadQuestionSets()
         } else {
           await restorePlayer()
         }
@@ -209,8 +214,15 @@ function App() {
   }
 
   async function startNewGame() {
+    if (!selectedQuestionSet) return
+
     try {
-      await connectionRef.current?.invoke('StartNewGame')
+      await connectionRef.current?.invoke(
+        'StartNewGame',
+        selectedQuestionSet
+      )
+
+      setPlayerAnswers([])
     } catch (err) {
       console.error(err)
       setError('Could not start the game.')
@@ -261,6 +273,27 @@ function App() {
     } catch (err) {
       console.error(err)
       setError('Could not submit answer.')
+    }
+  }
+
+  async function loadQuestionSets() {
+    try {
+      const sets = await connectionRef.current?.invoke<QuestionSetSummary[]>(
+        'GetQuestionSets'
+      )
+
+      if (sets) {
+        setQuestionSets(sets)
+
+        if (sets.length > 0) {
+          setSelectedQuestionSet(sets[0].fileName)
+        } else {
+          setSelectedQuestionSet('')
+        }
+      }
+    } catch (err) {
+      console.error('Could not load question sets:', err)
+      setError('Could not load question sets.')
     }
   }
 
@@ -336,9 +369,42 @@ function App() {
           ))
         )}
 
+        <h2>Choose a game</h2>
+
+        {questionSets.length === 0 ? (
+          <p>No question sets found.</p>
+        ) : (
+          <>
+            <select
+              value={selectedQuestionSet}
+              onChange={event => setSelectedQuestionSet(event.target.value)}
+            >
+              {questionSets.map(set => (
+                <option key={set.fileName} value={set.fileName}>
+                  {set.title}
+                </option>
+              ))}
+            </select>
+
+            {questionSets
+              .filter(set => set.fileName === selectedQuestionSet)
+              .map(set => (
+                <div key={set.fileName}>
+                  <p>{set.description}</p>
+                  <p>Questions: {set.questionCount}</p>
+                  <p>Rating: {set.rating}</p>
+                </div>
+              ))}
+          </>
+        )}
+
         <button
           onClick={startNewGame}
-          disabled={!connected || (room?.players.length ?? 0) === 0}
+          disabled={
+            !connected ||
+            !selectedQuestionSet ||
+            (room?.players.length ?? 0) === 0
+          }
         >
           Start new game
         </button>
@@ -389,11 +455,12 @@ function App() {
                   </button>
                 )}
 
-                {room?.game.phase === 'Playing' && (
-                  <button onClick={revealAnswer}>
-                    Reveal answer
-                  </button>
-                )}
+                {(room?.game.phase === 'Playing' ||
+                  room?.game.phase === 'Overtime') && (
+                    <button onClick={revealAnswer}>
+                      Reveal answer
+                    </button>
+                  )}
 
                 {room?.game.phase === 'Reveal' && (
                   <button onClick={advanceQuestion}>

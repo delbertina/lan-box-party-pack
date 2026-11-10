@@ -55,3 +55,12 @@ export interface AnswerSubmission {
   answer: string
   isCorrect: boolean
 }
+
+export interface QuestionSetSummary {
+  id: number
+  fileName: string
+  title: string
+  description: string
+  rating: number
+  questionCount: number
+}

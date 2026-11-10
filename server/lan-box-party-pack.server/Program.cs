@@ -18,6 +18,7 @@ builder.Services.AddSignalR().AddJsonProtocol(options =>
 builder.Services.AddSingleton<PlayerManager>();
 builder.Services.AddSingleton<GameManager>();
 builder.Services.AddSingleton<QuestionRepository>();
+builder.Services.AddHostedService<GameFlowService>();
 
 var app = builder.Build();
     

@@ -131,9 +131,9 @@ namespace lan_box_party_pack.server.Hubs
             await base.OnDisconnectedAsync(exception);
         }
 
-        public async Task StartNewGame()
+        public async Task StartNewGame(string fileName)
         {
-            var questionSet = _questionRepository.Load("holiday-mix.json");
+            var questionSet = _questionRepository.Load(fileName);
 
             _gameManager.StartNewGame(
                 _playerManager.Players,
@@ -186,6 +186,13 @@ namespace lan_box_party_pack.server.Hubs
             await Clients.Group("host-screen").SendAsync(
                 "PlayerAnswerSubmitted",
                 submission
+            );
+        }
+
+        public Task<List<QuestionSetSummary>> GetQuestionSets()
+        {
+            return Task.FromResult(
+                _questionRepository.GetAvailableQuestionSets()
             );
         }
     }

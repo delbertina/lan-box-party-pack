@@ -1,0 +1,14 @@
+{
+  "id": 4,
+  "title": "Actions > Words",
+  "description": "Must answer in the form of a dance move",
+  "rating": 2,
+  "questions": [
+    { "questionText": "Question 1", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 428, "endTime": 485 }, "answer": "Numa Numa", "answerSubtext": "", "correctAnswerOptionId": 171 },
+    { "questionText": "Question 2", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 487, "endTime": 533 }, "answer": "Watch Me (Whip/Nae Nae)", "answerSubtext": "", "correctAnswerOptionId": 172 },
+    { "questionText": "Question 3", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 534, "endTime": 546 }, "answer": "Gangnam Style", "answerSubtext": "", "correctAnswerOptionId": 93 },
+    { "questionText": "Question 4", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 547, "endTime": 577 }, "answer": "Single Ladies", "answerSubtext": "", "correctAnswerOptionId": 76 },
+    { "questionText": "Question 5", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 578, "endTime": 615 }, "answer": "Stayin' Alive", "answerSubtext": "", "correctAnswerOptionId": 173 },
+    { "questionText": "Question 6", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 616, "endTime": 636 }, "answer": "It's Not Unusual", "answerSubtext": "AKA The Carlton", "correctAnswerOptionId": 174 }
+  ]
+}

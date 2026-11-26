@@ -1,11 +1,11 @@
-﻿namespace lan_box_party_pack.server.Game
+﻿namespace lan_box_party_pack.server.Game;
+
+public class GameSettings
 {
-    public class GameSettings
-    {
-        public int GuessingDurationSeconds { get; set; } = 15;
+    public int GuessingDurationSeconds { get; set; } = 15;
+    public int OvertimeDurationSeconds { get; set; } = 5;
+    public int IncorrectGuessLockoutMilliseconds { get; set; } = 2000;
 
-        public int OvertimeDurationSeconds { get; set; } = 5;
-
-        public int IncorrectGuessLockoutMilliseconds { get; set; } = 2000;
-    }
+    public int[] CorrectAnswerPoints { get; set; } = [5, 3];
+    public int RemainingCorrectAnswerPoints { get; set; } = 1;
 }

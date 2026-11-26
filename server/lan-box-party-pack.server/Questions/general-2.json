@@ -1,0 +1,14 @@
+{
+  "id": 7,
+  "title": "General #2",
+  "description": "",
+  "rating": 2,
+  "questions": [
+    { "questionText": "Question 1", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 0, "endTime": 8 }, "answer": "You Really Got Me - The Kinks", "answerSubtext": "", "correctAnswerOptionId": 182 },
+    { "questionText": "Question 2", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 9, "endTime": 42 }, "answer": "Stand By Me - Ben E. King", "answerSubtext": "", "correctAnswerOptionId": 181 },
+    { "questionText": "Question 3", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 44, "endTime": 64 }, "answer": "Seven Nation Army - The White Stripes", "answerSubtext": "", "correctAnswerOptionId": 57 },
+    { "questionText": "Question 4", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 65, "endTime": 78 }, "answer": "Iron Man - Black Sabbath", "answerSubtext": "", "correctAnswerOptionId": 183 },
+    { "questionText": "Question 5", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 80, "endTime": 96 }, "answer": "Super Freak - Rick James", "answerSubtext": "AKA 'U Can't Touch This'", "correctAnswerOptionId": 184 },
+    { "questionText": "Question 6", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 97, "endTime": 112 }, "answer": "Feel Good Inc. - Gorillaz", "answerSubtext": "", "correctAnswerOptionId": 58 }
+  ]
+}

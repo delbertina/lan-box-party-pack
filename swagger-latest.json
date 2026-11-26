@@ -1,0 +1,543 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "lan-box-party-pack SignalR contract",
+    "description": "SignalR hub invocation documentation for /partyHub. These generated operations describe SignalR client invocations; they are not HTTP endpoints. Connect with a SignalR client and invoke the listed hub methods. Server-to-client events are RoomUpdated (RoomSnapshot), AnswerResult (AnswerSubmission, caller only), and PlayerAnswerSubmitted (AnswerSubmission, host-screen group).",
+    "version": "v1"
+  },
+  "paths": {
+    "/partyHub/AdvanceQuestion": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "Advance to the next question.",
+        "responses": { }
+      }
+    },
+    "/partyHub/EndPlayback": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "End playback at the supplied video timestamp.",
+        "parameters": [
+          {
+            "name": "videoTimestampSeconds",
+            "in": "query",
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        ],
+        "responses": { }
+      }
+    },
+    "/partyHub/GetAnswerOptions": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "Get all configured answer options.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AnswerOption"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AnswerOption"
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AnswerOption"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/partyHub/GetQuestionSets": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "Get the available question-set summaries.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QuestionSetSummary"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QuestionSetSummary"
+                  }
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QuestionSetSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/partyHub/JoinRoom": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "Join or reconnect a player and subscribe to room updates.",
+        "parameters": [
+          {
+            "name": "playerId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerName",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "color",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": { }
+      }
+    },
+    "/partyHub/RevealAnswer": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "Reveal the current question's answer.",
+        "responses": { }
+      }
+    },
+    "/partyHub/StartNewGame": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "Start a new game from a question-set JSON filename.",
+        "parameters": [
+          {
+            "name": "fileName",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": { }
+      }
+    },
+    "/partyHub/StartQuestion": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "Start the current question.",
+        "responses": { }
+      }
+    },
+    "/partyHub/SubmitAnswer": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "Submit an answer option for the connected player; the player must have joined the room.",
+        "parameters": [
+          {
+            "name": "answerOptionId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": { }
+      }
+    },
+    "/partyHub/UpdatePlayback": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "Update playback timestamp and playing state.",
+        "parameters": [
+          {
+            "name": "videoTimestampSeconds",
+            "in": "query",
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "name": "isPlaying",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": { }
+      }
+    },
+    "/partyHub/WatchRoom": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "Subscribe to room and host-screen updates and receive the current room snapshot.",
+        "responses": { }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AnswerOption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true
+          },
+          "category": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AnswerSubmission": {
+        "type": "object",
+        "properties": {
+          "playerId": {
+            "type": "string",
+            "nullable": true
+          },
+          "playerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "playerColor": {
+            "type": "string",
+            "nullable": true
+          },
+          "answer": {
+            "type": "string",
+            "nullable": true
+          },
+          "isCorrect": {
+            "type": "boolean"
+          },
+          "pointsAwarded": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "correctAnswerNumber": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "alreadyAnsweredCorrectly": {
+            "type": "boolean"
+          },
+          "videoTimestampSeconds": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "answerOptionId": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GamePhase": {
+        "enum": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "type": "integer",
+        "format": "int32"
+      },
+      "GameSettings": {
+        "type": "object",
+        "properties": {
+          "guessingDurationSeconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "overtimeDurationSeconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "incorrectGuessLockoutMilliseconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "correctAnswerPoints": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "nullable": true
+          },
+          "remainingCorrectAnswerPoints": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GameState": {
+        "type": "object",
+        "properties": {
+          "gameSessionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "phase": {
+            "$ref": "#/components/schemas/GamePhase"
+          },
+          "currentQuestionIndex": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "phaseStartedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "phaseEndsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "phasePausedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "scores": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "nullable": true
+          },
+          "questionSetId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "questionSetTitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalQuestions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "currentQuestion": {
+            "$ref": "#/components/schemas/QuestionPrompt"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/GameSettings"
+          },
+          "revealedAnswer": {
+            "type": "string",
+            "nullable": true
+          },
+          "revealedAnswerSubtext": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Player": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "isConnected": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "QuestionPrompt": {
+        "type": "object",
+        "properties": {
+          "questionText": {
+            "type": "string",
+            "nullable": true
+          },
+          "questionVideo": {
+            "$ref": "#/components/schemas/QuestionVideo"
+          }
+        },
+        "additionalProperties": false
+      },
+      "QuestionSetSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "rating": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "questionCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "QuestionVideo": {
+        "type": "object",
+        "properties": {
+          "youTubeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "startTime": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "endTime": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RoomSnapshot": {
+        "type": "object",
+        "properties": {
+          "players": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Player"
+            },
+            "nullable": true
+          },
+          "game": {
+            "$ref": "#/components/schemas/GameState"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "PartyHub"
+    }
+  ],
+  "x-signalr-server-events": [
+    {
+      "name": "RoomUpdated",
+      "description": "Server-to-client SignalR event. Payload type: RoomSnapshot.",
+      "payloadSchema": {
+        "$ref": "#/components/schemas/RoomSnapshot"
+      },
+      "delivery": "Caller for WatchRoom; main-room group for room/game updates."
+    },
+    {
+      "name": "AnswerResult",
+      "description": "Server-to-client SignalR event. Payload type: AnswerSubmission.",
+      "payloadSchema": {
+        "$ref": "#/components/schemas/AnswerSubmission"
+      },
+      "delivery": "Only the connection that invoked SubmitAnswer."
+    },
+    {
+      "name": "PlayerAnswerSubmitted",
+      "description": "Server-to-client SignalR event. Payload type: AnswerSubmission.",
+      "payloadSchema": {
+        "$ref": "#/components/schemas/AnswerSubmission"
+      },
+      "delivery": "host-screen group; connections join this group by invoking WatchRoom."
+    }
+  ]
+}

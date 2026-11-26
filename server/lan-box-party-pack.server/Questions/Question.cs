@@ -9,5 +9,7 @@
         public string Answer { get; set; } = "";
 
         public string AnswerSubtext { get; set; } = "";
+
+        public int CorrectAnswerOptionId { get; set; }
     }
 }

@@ -26,6 +26,7 @@ export interface GameState {
   currentQuestionIndex: number
   phaseStartedAt: string | null
   phaseEndsAt: string | null
+  phasePausedAt: string | null
   scores: Record<string, number>
 
   questionSetId: number
@@ -37,6 +38,8 @@ export interface GameState {
     guessingDurationSeconds: number
     overtimeDurationSeconds: number
     incorrectGuessLockoutMilliseconds: number
+    correctAnswerPoints: number[]
+    remainingCorrectAnswerPoints: number
   }
 
   revealedAnswer: string | null
@@ -54,6 +57,9 @@ export interface AnswerSubmission {
   playerColor: string
   answer: string
   isCorrect: boolean
+  pointsAwarded: number
+  correctAnswerNumber: number | null
+  alreadyAnsweredCorrectly: boolean
 }
 
 export interface QuestionSetSummary {
@@ -63,4 +69,10 @@ export interface QuestionSetSummary {
   description: string
   rating: number
   questionCount: number
+}
+
+export interface AnswerOption {
+  id: number
+  displayName: string
+  category: string
 }

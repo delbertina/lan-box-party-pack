@@ -7,6 +7,10 @@ namespace lan_box_party_pack.server.Game
     {
         private readonly object _stateLock = new();
         private QuestionSet? _questionSet;
+        private readonly HashSet<string> _correctPlayersThisQuestion = [];
+        private double _videoTimestampSeconds;
+        private DateTimeOffset _lastPlaybackUpdateAt;
+        private bool _isVideoPlaying;
 
         public GameState State { get; private set; } = new();
 
@@ -22,6 +26,7 @@ namespace lan_box_party_pack.server.Game
                 }
 
                 _questionSet = questionSet;
+                _correctPlayersThisQuestion.Clear();
 
                 State = new GameState
                 {
@@ -58,9 +63,16 @@ namespace lan_box_party_pack.server.Game
                 State.PhaseEndsAt = now.AddSeconds(
                     State.Settings.GuessingDurationSeconds
                 );
+                State.PhasePausedAt = null;
 
                 State.RevealedAnswer = null;
                 State.RevealedAnswerSubtext = null;
+
+                _videoTimestampSeconds =
+                    State.CurrentQuestion!.QuestionVideo.StartTime;
+
+                _lastPlaybackUpdateAt = now;
+                _isVideoPlaying = true;
             }
         }
 
@@ -101,8 +113,16 @@ namespace lan_box_party_pack.server.Game
                     State.PhaseStartedAt = DateTimeOffset.UtcNow;
                     State.PhaseEndsAt = null;
                     State.CurrentQuestion = null;
+                    _videoTimestampSeconds = 0;
+                    _lastPlaybackUpdateAt = DateTimeOffset.UtcNow;
+                    _isVideoPlaying = false;
                     return;
                 }
+
+                _videoTimestampSeconds = 0;
+                _lastPlaybackUpdateAt = DateTimeOffset.UtcNow;
+                _isVideoPlaying = false;
+                _correctPlayersThisQuestion.Clear();
 
                 State.CurrentQuestionIndex = nextIndex;
                 State.CurrentQuestion = CreateQuestionPrompt(
@@ -151,7 +171,7 @@ namespace lan_box_party_pack.server.Game
             }
         }
 
-        public AnswerSubmission SubmitAnswer(Player player, string submittedAnswer)
+        public AnswerSubmission SubmitAnswer(Player player, int submittedAnswerOptionId)
         {
             lock (_stateLock)
             {
@@ -165,17 +185,55 @@ namespace lan_box_party_pack.server.Game
 
                 var question = GetCurrentQuestion();
 
-                var isCorrect = NormalizeAnswer(submittedAnswer) ==
-                                NormalizeAnswer(question.Answer);
+                var isCorrect = submittedAnswerOptionId ==
+                    question.CorrectAnswerOptionId;
 
-                return new AnswerSubmission
+                var estimatedVideoTimestamp = _videoTimestampSeconds;
+
+                if (_isVideoPlaying)
+                {
+                    estimatedVideoTimestamp += (
+                        DateTimeOffset.UtcNow - _lastPlaybackUpdateAt
+                    ).TotalSeconds;
+                }
+
+                var submission = new AnswerSubmission
                 {
                     PlayerId = player.Id,
                     PlayerName = player.Name,
                     PlayerColor = player.Color,
-                    Answer = submittedAnswer,
-                    IsCorrect = isCorrect
+                    AnswerOptionId = submittedAnswerOptionId,
+                    IsCorrect = isCorrect,
+                    AlreadyAnsweredCorrectly =
+                        _correctPlayersThisQuestion.Contains(player.Id),
+                    VideoTimestampSeconds = estimatedVideoTimestamp,
                 };
+
+                // Ensure the player has a score entry, including players
+                // who may have joined after the game started.
+                State.Scores.TryAdd(player.Id, 0);
+
+                // Only the first correct answer from each player earns points.
+                if (isCorrect && !submission.AlreadyAnsweredCorrectly)
+                {
+                    _correctPlayersThisQuestion.Add(player.Id);
+
+                    var correctAnswerNumber = _correctPlayersThisQuestion.Count;
+                    var configuredPoints = State.Settings.CorrectAnswerPoints;
+
+                    var points = correctAnswerNumber <= configuredPoints.Length
+                        ? configuredPoints[correctAnswerNumber - 1]
+                        : State.Settings.RemainingCorrectAnswerPoints;
+
+                    points = Math.Max(0, points);
+
+                    submission.CorrectAnswerNumber = correctAnswerNumber;
+                    submission.PointsAwarded = points;
+
+                    State.Scores[player.Id] += points;
+                }
+
+                return submission;
             }
         }
 
@@ -189,39 +247,6 @@ namespace lan_box_party_pack.server.Game
             );
         }
 
-        public bool ProcessExpiredPhase()
-        {
-            lock (_stateLock)
-            {
-                if (State.PhaseEndsAt == null ||
-                    DateTimeOffset.UtcNow < State.PhaseEndsAt.Value)
-                {
-                    return false;
-                }
-
-                var now = DateTimeOffset.UtcNow;
-
-                if (State.Phase == GamePhase.Playing)
-                {
-                    State.Phase = GamePhase.Overtime;
-                    State.PhaseStartedAt = now;
-                    State.PhaseEndsAt = now.AddSeconds(
-                        State.Settings.OvertimeDurationSeconds
-                    );
-
-                    return true;
-                }
-
-                if (State.Phase == GamePhase.Overtime)
-                {
-                    RevealAnswerCore(now);
-                    return true;
-                }
-
-                return false;
-            }
-        }
-
         private void RevealAnswerCore(DateTimeOffset now)
         {
             var question = GetCurrentQuestion();
@@ -232,6 +257,76 @@ namespace lan_box_party_pack.server.Game
 
             State.RevealedAnswer = question.Answer;
             State.RevealedAnswerSubtext = question.AnswerSubtext;
+        }
+
+        public void StartOvertime()
+        {
+            lock (_stateLock)
+            {
+                EnsurePhase(GamePhase.Playing);
+
+                State.Phase = GamePhase.Overtime;
+                State.PhaseStartedAt = DateTimeOffset.UtcNow;
+                State.PhaseEndsAt = null;
+            }
+        }
+
+        public bool UpdatePlayback(double videoTimestampSeconds, bool isPlaying)
+        {
+            lock (_stateLock)
+            {
+                if (State.Phase != GamePhase.Playing)
+                    return false;
+
+                var now = DateTimeOffset.UtcNow;
+                var playbackStateChanged = _isVideoPlaying != isPlaying;
+
+                if (playbackStateChanged)
+                {
+                    if (!isPlaying)
+                    {
+                        State.PhasePausedAt = now;
+                    }
+                    else if (State.PhasePausedAt.HasValue)
+                    {
+                        var pausedDuration = now - State.PhasePausedAt.Value;
+
+                        if (State.PhaseEndsAt.HasValue)
+                        {
+                            State.PhaseEndsAt += pausedDuration;
+                        }
+
+                        State.PhasePausedAt = null;
+                    }
+                }
+
+                _videoTimestampSeconds = Math.Max(0, videoTimestampSeconds);
+                _lastPlaybackUpdateAt = now;
+                _isVideoPlaying = isPlaying;
+
+                return playbackStateChanged;
+            }
+        }
+
+        public void EndPlayback(double videoTimestampSeconds)
+        {
+            lock (_stateLock)
+            {
+                EnsurePhase(GamePhase.Playing);
+
+                _videoTimestampSeconds = Math.Max(0, videoTimestampSeconds);
+                _lastPlaybackUpdateAt = DateTimeOffset.UtcNow;
+                _isVideoPlaying = false;
+
+                var now = DateTimeOffset.UtcNow;
+
+                State.Phase = GamePhase.Overtime;
+                State.PhaseStartedAt = now;
+                State.PhaseEndsAt = now.AddSeconds(
+                    State.Settings.OvertimeDurationSeconds
+                );
+                State.PhasePausedAt = null;
+            }
         }
     }
 }

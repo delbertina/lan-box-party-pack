@@ -1,0 +1,12 @@
+{
+  "id": 1,
+  "title": "Weird Al",
+  "description": "Must answer in the form of a Weird Al song",
+  "rating": 2,
+  "questions": [
+    { "questionText": "Question 1", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 158, "endTime": 167 }, "answer": "Another One Rides the Bus", "answerSubtext": "", "correctAnswerOptionId": 161 },
+    { "questionText": "Question 2", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 777, "endTime": 794 }, "answer": "White and Nerdy", "answerSubtext": "", "correctAnswerOptionId": 162 },
+    { "questionText": "Question 3", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 740, "endTime": 774 }, "answer": "The Saga Begins", "answerSubtext": "", "correctAnswerOptionId": 163 },
+    { "questionText": "Question 4", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 1048, "endTime": 1058 }, "answer": "Like a Surgeon", "answerSubtext": "", "correctAnswerOptionId": 164 }
+  ]
+}

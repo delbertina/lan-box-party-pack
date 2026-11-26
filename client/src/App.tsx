@@ -7,13 +7,20 @@ import {
   HubConnectionBuilder
 } from '@microsoft/signalr'
 
-import type { AnswerSubmission, QuestionSetSummary, RoomSnapshot } from './lib/types'
+import type { AnswerOption, AnswerSubmission, QuestionSetSummary, RoomSnapshot } from './lib/types'
+import ReactPlayerImport from 'react-player'
+// todo fix this by updating react-player to a version that has proper ESM support, then remove this workaround
+const ReactPlayer =
+  (ReactPlayerImport as unknown as { default?: typeof ReactPlayerImport }).default
+  ?? ReactPlayerImport
 
 function App() {
   const isHost = window.location.pathname === '/host'
 
   const connectionRef = useRef<HubConnection | null>(null)
   const currentQuestionKeyRef = useRef<string | null>(null)
+  const playerRef = useRef<ReactPlayerImport | null>(null)
+  const playbackIsAdvancingRef = useRef(false)
 
   const [connected, setConnected] = useState(false)
   const [playerName, setPlayerName] = useState('')
@@ -25,16 +32,96 @@ function App() {
   const [room, setRoom] = useState<RoomSnapshot | null>(null)
   const [error, setError] = useState('')
   const [playingQuestionKey, setPlayingQuestionKey] = useState<string | null>(null)
+  const [playbackStatus, setPlaybackStatus] = useState('Ready')
+  const [playbackTime, setPlaybackTime] = useState(0)
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false)
   const [answer, setAnswer] = useState('')
   const [answerResult, setAnswerResult] = useState<AnswerSubmission | null>(null)
   const [playerAnswers, setPlayerAnswers] = useState<AnswerSubmission[]>([])
 
   const [questionSets, setQuestionSets] = useState<QuestionSetSummary[]>([])
   const [selectedQuestionSet, setSelectedQuestionSet] = useState('')
+  const [countdownNow, setCountdownNow] = useState(Date.now())
+  const [answerOptions, setAnswerOptions] = useState<AnswerOption[]>([])
+  const [selectedAnswerOptionId, setSelectedAnswerOptionId] = useState<number | null>(null)
 
   const currentClipKey = room?.game.gameSessionId
     ? `${room.game.gameSessionId}-${room.game.currentQuestionIndex}`
     : null
+
+  const sortedPlayers = room
+    ? [...room.players].sort(
+      (a, b) =>
+        (room.game.scores[b.id] ?? 0) -
+        (room.game.scores[a.id] ?? 0)
+    )
+    : []
+
+  const phaseDurationSeconds =
+    room?.game.phase === 'Playing'
+      ? room.game.settings.guessingDurationSeconds
+      : room?.game.phase === 'Overtime'
+        ? room.game.settings.overtimeDurationSeconds
+        : 0
+
+  const phaseRemainingSeconds = room?.game.phaseEndsAt
+    ? Math.max(
+      0,
+      (
+        Date.parse(room.game.phaseEndsAt) -
+        (
+          room.game.phasePausedAt
+            ? Date.parse(room.game.phasePausedAt)
+            : countdownNow
+        )
+      ) / 1000
+    )
+    : 0
+
+  const phaseProgress = phaseDurationSeconds > 0
+    ? Math.min(1, phaseRemainingSeconds / phaseDurationSeconds)
+    : 0
+
+  const filteredAnswerOptions = answer.trim()
+    ? answerOptions
+      .filter(option =>
+        option.displayName.toLowerCase().includes(answer.toLowerCase())
+      )
+      .slice(0, 10)
+    : []
+
+  const countdownIndicator = (
+    room?.game.phase === 'Playing' ||
+    room?.game.phase === 'Overtime'
+  ) && (
+      <div style={{ maxWidth: 800, margin: '16px 0' }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          marginBottom: 6
+        }}>
+          <strong>
+            {room.game.phase === 'Playing' ? 'Time remaining' : 'Overtime'}
+          </strong>
+          <strong>{phaseRemainingSeconds.toFixed(1)}s</strong>
+        </div>
+
+        <div style={{
+          width: '100%',
+          height: 16,
+          backgroundColor: '#555',
+          borderRadius: 8,
+          overflow: 'hidden'
+        }}>
+          <div style={{
+            width: `${phaseProgress * 100}%`,
+            height: '100%',
+            backgroundColor: '#e53935',
+            transition: 'width 100ms linear'
+          }} />
+        </div>
+      </div>
+    )
 
   useEffect(() => {
     const connection = new HubConnectionBuilder()
@@ -147,6 +234,9 @@ function App() {
       .then(async () => {
         setConnected(true)
 
+        const options = await connection.invoke<AnswerOption[]>('GetAnswerOptions')
+        setAnswerOptions(options)
+
         if (isHost) {
           await connection.invoke('WatchRoom')
           await loadQuestionSets()
@@ -164,6 +254,17 @@ function App() {
       connection.stop()
     }
   }, [isHost])
+
+  useEffect(() => {
+    if (!room?.game.phaseEndsAt) return
+
+    const update = () => setCountdownNow(Date.now())
+    update()
+
+    const interval = window.setInterval(update, 100)
+
+    return () => window.clearInterval(interval)
+  }, [room?.game.phaseEndsAt])
 
   async function joinGame() {
     if (!playerName.trim()) return
@@ -257,19 +358,18 @@ function App() {
   }
 
   async function submitAnswer() {
-    const trimmedAnswer = answer.trim()
-
-    if (!trimmedAnswer) return
+    if (selectedAnswerOptionId === null) return
 
     try {
       setAnswerResult(null)
 
       await connectionRef.current?.invoke(
         'SubmitAnswer',
-        trimmedAnswer
+        selectedAnswerOptionId
       )
 
       setAnswer('')
+      setSelectedAnswerOptionId(null)
     } catch (err) {
       console.error(err)
       setError('Could not submit answer.')
@@ -294,6 +394,22 @@ function App() {
     } catch (err) {
       console.error('Could not load question sets:', err)
       setError('Could not load question sets.')
+    }
+  }
+
+  function formatOrdinal(number: number): string {
+    const remainder10 = number % 10
+    const remainder100 = number % 100
+
+    if (remainder100 >= 11 && remainder100 <= 13) {
+      return `${number}th`
+    }
+
+    switch (remainder10) {
+      case 1: return `${number}st`
+      case 2: return `${number}nd`
+      case 3: return `${number}rd`
+      default: return `${number}th`
     }
   }
 
@@ -327,6 +443,18 @@ function App() {
             {player.name} — {player.isConnected ? 'Connected' : 'Disconnected'}
           </p>
         ))}
+
+        <h2>Scoreboard</h2>
+
+        {sortedPlayers.length === 0 ? (
+          <p>No players yet.</p>
+        ) : (
+          sortedPlayers.map((player, index) => (
+            <p key={player.id}>
+              {index + 1}. {player.name} — {room?.game.scores[player.id] ?? 0} points
+            </p>
+          ))
+        )}
 
         <h2>Answers</h2>
 
@@ -365,6 +493,16 @@ function App() {
               >
                 {submission.isCorrect ? 'Correct!' : 'Incorrect'}
               </strong>
+
+              {submission.isCorrect && (
+                <p>
+                  {submission.alreadyAnsweredCorrectly
+                    ? 'Already scored for this question.'
+                    : `+${submission.pointsAwarded} points — ${formatOrdinal(
+                      submission.correctAnswerNumber!
+                    )} correct answer`}
+                </p>
+              )}
             </div>
           ))
         )}
@@ -419,6 +557,8 @@ function App() {
               Phase: {room.game.phase}
             </p>
 
+            {countdownIndicator}
+
             <p>
               Question {
                 room.game.currentQuestionIndex + 1
@@ -429,12 +569,27 @@ function App() {
               {room.game.currentQuestion?.questionText}
             </h3>
 
-            {room.game.currentQuestion && currentClipKey && (
+            {room?.game.phase === 'QuestionIntro' && (
+              <button
+                onClick={() => {
+                  startQuestion()
+                  setPlayingQuestionKey(currentClipKey)
+                  setIsVideoPlaying(true)
+                  setPlaybackTime(
+                    room.game.currentQuestion!.questionVideo.startTime
+                  )
+                  setPlaybackStatus('Loading')
+                }}
+              >
+                Play clip
+              </button>
+            )}
+
+            {room?.game.phase === 'Playing' && room.game.currentQuestion && currentClipKey && (
               <>
                 <p>
                   Video: {room.game.currentQuestion.questionVideo.youTubeId}
                 </p>
-
                 <p>
                   Clip: {
                     room.game.currentQuestion.questionVideo.startTime
@@ -443,45 +598,7 @@ function App() {
                   }s
                 </p>
 
-                <button
-                  onClick={() => setPlayingQuestionKey(currentClipKey)}
-                >
-                  Play clip
-                </button>
-
-                {room?.game.phase === 'QuestionIntro' && (
-                  <button onClick={startQuestion}>
-                    Start question
-                  </button>
-                )}
-
-                {(room?.game.phase === 'Playing' ||
-                  room?.game.phase === 'Overtime') && (
-                    <button onClick={revealAnswer}>
-                      Reveal answer
-                    </button>
-                  )}
-
-                {room?.game.phase === 'Reveal' && (
-                  <button onClick={advanceQuestion}>
-                    Next question
-                  </button>
-                )}
-
-                {room?.game.phase === 'Reveal' && (
-                  <div>
-                    <h2>{room.game.revealedAnswer}</h2>
-                    {room.game.revealedAnswerSubtext && (
-                      <p>{room.game.revealedAnswerSubtext}</p>
-                    )}
-                  </div>
-                )}
-
-                {room?.game.phase === 'Results' && (
-                  <h2>Game complete!</h2>
-                )}
-
-                {playingQuestionKey === currentClipKey && (
+                {room?.game.phase === 'Playing' && (
                   <div
                     style={{
                       width: '100%',
@@ -490,22 +607,149 @@ function App() {
                       marginTop: 16
                     }}
                   >
-                    <iframe
+                    <ReactPlayer
+                      ref={playerRef}
                       key={currentClipKey}
+                      url={`https://www.youtube.com/watch?v=${room.game.currentQuestion.questionVideo.youTubeId}`}
+                      playing={isVideoPlaying}
+                      controls={false}
                       width="100%"
                       height="100%"
-                      src={`https://www.youtube.com/embed/${room.game.currentQuestion.questionVideo.youTubeId
-                        }?autoplay=1&start=${room.game.currentQuestion.questionVideo.startTime
-                        }&end=${room.game.currentQuestion.questionVideo.endTime
-                        }&controls=0&rel=0&playsinline=1`}
-                      title="Question video"
-                      allow="autoplay; encrypted-media; picture-in-picture"
-                      allowFullScreen
-                      style={{ border: 0 }}
+                      progressInterval={500}
+                      config={{
+                        youtube: {
+                          playerVars: {
+                            start: room.game.currentQuestion.questionVideo.startTime,
+                            end: room.game.currentQuestion.questionVideo.endTime,
+                            controls: 0,
+                            rel: 0,
+                            playsinline: 1
+                          }
+                        }
+                      }}
+                      onPlay={() => {
+                        playbackIsAdvancingRef.current = true
+                        setPlaybackStatus('Playing')
+
+                        if (room?.game.phase === 'QuestionIntro') {
+                          connectionRef.current
+                            ?.invoke('StartQuestion')
+                            .catch(error => console.error('Could not start question:', error))
+                        } else {
+                          const timestamp = playerRef.current?.getCurrentTime()
+
+                          if (timestamp !== undefined) {
+                            connectionRef.current
+                              ?.send('UpdatePlayback', timestamp, true)
+                              .catch(error => console.error('Could not update playback:', error))
+                          }
+                        }
+                      }}
+
+                      onPause={() => {
+                        playbackIsAdvancingRef.current = false
+                        setPlaybackStatus('Paused')
+
+                        const timestamp = playerRef.current?.getCurrentTime()
+
+                        if (timestamp !== undefined) {
+                          connectionRef.current
+                            ?.send('UpdatePlayback', timestamp, false)
+                            .catch(error => console.error('Could not update playback:', error))
+                        }
+                      }}
+
+                      onBuffer={() => {
+                        playbackIsAdvancingRef.current = false
+                        setPlaybackStatus('Buffering')
+
+                        const timestamp = playerRef.current?.getCurrentTime()
+
+                        if (timestamp !== undefined) {
+                          connectionRef.current
+                            ?.send('UpdatePlayback', timestamp, false)
+                            .catch(error => console.error('Could not update playback:', error))
+                        }
+                      }}
+
+                      onBufferEnd={() => {
+                        playbackIsAdvancingRef.current = true
+                        setPlaybackStatus('Playing')
+
+                        const timestamp = playerRef.current?.getCurrentTime()
+
+                        if (timestamp !== undefined) {
+                          connectionRef.current
+                            ?.send('UpdatePlayback', timestamp, true)
+                            .catch(error => console.error('Could not update playback:', error))
+                        }
+                      }}
+
+                      onProgress={({ playedSeconds }) => {
+                        setPlaybackTime(playedSeconds)
+
+                        if (playbackIsAdvancingRef.current) {
+                          connectionRef.current
+                            ?.send('UpdatePlayback', playedSeconds, true)
+                            .catch(error => console.error('Could not update playback:', error))
+                        }
+                      }}
+
+                      onEnded={() => {
+                        playbackIsAdvancingRef.current = false
+                        setPlaybackStatus('Ended')
+                        setIsVideoPlaying(false)
+
+                        const timestamp =
+                          playerRef.current?.getCurrentTime() ?? playbackTime
+
+                        connectionRef.current
+                          ?.invoke('EndPlayback', timestamp)
+                          .catch(error => console.error('Could not end playback:', error))
+                      }}
                     />
+
+                    <p>
+                      Playback: {playbackStatus}
+                    </p>
+
+                    <p>
+                      Timestamp: {playbackTime.toFixed(2)}s
+                    </p>
+
+                    <button
+                      onClick={() => setIsVideoPlaying(previous => !previous)}
+                      disabled={playbackStatus === 'Ended'}
+                    >
+                      {isVideoPlaying ? 'Pause' : 'Resume'}
+                    </button>
                   </div>
                 )}
               </>
+            )}
+            {(room?.game.phase === 'Overtime') && (
+              <button onClick={revealAnswer}>
+                Reveal answer
+              </button>
+            )}
+
+            {room?.game.phase === 'Reveal' && (
+              <button onClick={advanceQuestion}>
+                Next question
+              </button>
+            )}
+
+            {room?.game.phase === 'Reveal' && (
+              <div>
+                <h2>{room.game.revealedAnswer}</h2>
+                {room.game.revealedAnswerSubtext && (
+                  <p>{room.game.revealedAnswerSubtext}</p>
+                )}
+              </div>
+            )}
+
+            {room?.game.phase === 'Results' && (
+              <h2>Game complete!</h2>
             )}
           </>
         ) : (
@@ -595,35 +839,88 @@ function App() {
             <>
               <h3>{room.game.currentQuestion?.questionText}</h3>
 
+              {countdownIndicator}
+
               <form
                 onSubmit={event => {
                   event.preventDefault()
                   void submitAnswer()
                 }}
               >
-                <input
-                  value={answer}
-                  onChange={event => setAnswer(event.target.value)}
-                  placeholder="Type your answer..."
-                  autoComplete="off"
-                />
+                <div>
+                  <input
+                    value={answer}
+                    onChange={event => {
+                      setAnswer(event.target.value)
+                      setSelectedAnswerOptionId(null)
+                    }}
+                    placeholder="Search for a song or artist..."
+                    autoComplete="off"
+                  />
+
+                  {answer.trim() && selectedAnswerOptionId === null && (
+                    <div style={{
+                      border: '1px solid #888',
+                      borderRadius: 8,
+                      maxHeight: 240,
+                      overflowY: 'auto',
+                      maxWidth: 400
+                    }}>
+                      {filteredAnswerOptions.length > 0 ? (
+                        filteredAnswerOptions.map(option => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => {
+                              setAnswer(option.displayName)
+                              setSelectedAnswerOptionId(option.id)
+                            }}
+                            style={{
+                              display: 'block',
+                              width: '100%',
+                              padding: 10,
+                              textAlign: 'left',
+                              border: 'none',
+                              borderBottom: '1px solid #555',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {option.displayName}
+                          </button>
+                        ))
+                      ) : (
+                        <p>No matching options.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 <button
                   type="submit"
-                  disabled={!answer.trim() || !connected}
+                  disabled={selectedAnswerOptionId === null || !connected}
                 >
                   Submit answer
                 </button>
               </form>
 
               {answerResult && (
-                <h2
-                  style={{
-                    color: answerResult.isCorrect ? 'green' : 'red'
-                  }}
-                >
-                  {answerResult.isCorrect ? 'Correct!' : 'Incorrect!'}
-                </h2>
+                <div>
+                  <h2
+                    style={{
+                      color: answerResult.isCorrect ? 'green' : 'red'
+                    }}
+                  >
+                    {answerResult.isCorrect ? 'Correct!' : 'Incorrect!'}
+                  </h2>
+
+                  {answerResult.isCorrect && (
+                    <p>
+                      {answerResult.alreadyAnsweredCorrectly
+                        ? 'You already earned points for this question.'
+                        : `You earned ${answerResult.pointsAwarded} points!`}
+                    </p>
+                  )}
+                </div>
               )}
             </>
           ) : (
@@ -638,6 +935,18 @@ function App() {
             </p>
           )}
         </>
+      )}
+
+      {joined && room && (
+        <section>
+          <h2>Scoreboard</h2>
+
+          {sortedPlayers.map((player, index) => (
+            <p key={player.id}>
+              {index + 1}. {player.name} — {room.game.scores[player.id] ?? 0} points
+            </p>
+          ))}
+        </section>
       )}
 
       {error && <p>{error}</p>}

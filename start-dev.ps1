@@ -11,5 +11,5 @@ Start-Process powershell -ArgumentList @(
 Start-Process powershell -ArgumentList @(
     "-NoExit",
     "-Command",
-    "Set-Location '$root/client'; npm run dev -- --host 0.0.0.0"
+    "Set-Location '$root/client'; npm run start -- --host 0.0.0.0"
 )

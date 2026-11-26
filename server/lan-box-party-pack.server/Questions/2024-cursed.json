@@ -1,0 +1,14 @@
+{
+  "id": 17,
+  "title": "2024 - Cursed",
+  "description": "Songs that are obscure and/or turned out comicly bad",
+  "rating": 4,
+  "questions": [
+    { "questionText": "Question 1", "questionVideo": { "youTubeId": "qZmErriuvnU", "startTime": 0, "endTime": 13 }, "answer": "Hall of the Mountain King", "answerSubtext": "Some dead guy idk", "correctAnswerOptionId": 213 },
+    { "questionText": "Question 2", "questionVideo": { "youTubeId": "qZmErriuvnU", "startTime": 844, "endTime": 897 }, "answer": "Money Money Money", "answerSubtext": "ABBA", "correctAnswerOptionId": 214 },
+    { "questionText": "Question 3", "questionVideo": { "youTubeId": "qZmErriuvnU", "startTime": 78, "endTime": 120 }, "answer": "Fireflies", "answerSubtext": "Owl City", "correctAnswerOptionId": 215 },
+    { "questionText": "Question 4", "questionVideo": { "youTubeId": "qZmErriuvnU", "startTime": 200, "endTime": 233 }, "answer": "Sincerely Me", "answerSubtext": "Dear Even Hansen", "correctAnswerOptionId": 216 },
+    { "questionText": "Question 5", "questionVideo": { "youTubeId": "qZmErriuvnU", "startTime": 541, "endTime": 574 }, "answer": "Merry-Go-Round of Life", "answerSubtext": "Howl's Moving Castle", "correctAnswerOptionId": 217 },
+    { "questionText": "Question 6", "questionVideo": { "youTubeId": "qZmErriuvnU", "startTime": 235, "endTime": 266 }, "answer": "Gotta Get Back to Hogwarts", "answerSubtext": "A Very Potter Musical", "correctAnswerOptionId": 218 }
+  ]
+}

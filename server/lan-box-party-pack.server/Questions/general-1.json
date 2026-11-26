@@ -1,0 +1,15 @@
+{
+  "id": 5,
+  "title": "General #1",
+  "description": "Guess the song from the clip",
+  "rating": 2,
+  "questions": [
+    { "questionText": "Question 1", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 795, "endTime": 804 }, "answer": "ABC - Jackson 5", "answerSubtext": "", "correctAnswerOptionId": 175 },
+    { "questionText": "Question 2", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 806, "endTime": 843 }, "answer": "Industry Baby - Lil Nas X", "answerSubtext": "", "correctAnswerOptionId": 129 },
+    { "questionText": "Question 3", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 844, "endTime": 894 }, "answer": "Ocean Man - Ween", "answerSubtext": "", "correctAnswerOptionId": 176 },
+    { "questionText": "Question 4", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 894, "endTime": 911 }, "answer": "La Bamba", "answerSubtext": "", "correctAnswerOptionId": 177 },
+    { "questionText": "Question 5", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 912, "endTime": 934 }, "answer": "Hit the Road Jack", "answerSubtext": "", "correctAnswerOptionId": 178 },
+    { "questionText": "Question 6", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 1059, "endTime": 1087 }, "answer": "Flowers - Miley Cyrus", "answerSubtext": "", "correctAnswerOptionId": 114 },
+    { "questionText": "Question 7", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 1087, "endTime": 1102 }, "answer": "Uptown Funk - Bruno Mars", "answerSubtext": "", "correctAnswerOptionId": 96 }
+  ]
+}

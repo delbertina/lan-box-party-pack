@@ -13,6 +13,7 @@ namespace lan_box_party_pack.server.Game
         public DateTimeOffset? PhaseStartedAt { get; set; }
 
         public DateTimeOffset? PhaseEndsAt { get; set; }
+        public DateTimeOffset? PhasePausedAt { get; set; }
 
         public Dictionary<string, int> Scores { get; set; } = new();
 

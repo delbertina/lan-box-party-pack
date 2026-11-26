@@ -1,0 +1,10 @@
+{
+  "id": 6,
+  "title": "Madison Watt's Mixtape",
+  "description": "Songs that she really liked and I somehow remember.",
+  "rating": 4,
+  "questions": [
+    { "questionText": "Question 1", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 375, "endTime": 405 }, "answer": "Holiday - Green Day", "answerSubtext": "", "correctAnswerOptionId": 179 },
+    { "questionText": "Question 2", "questionVideo": { "youTubeId": "8cFU4rBgqio", "startTime": 407, "endTime": 426 }, "answer": "Holiday - Green Day", "answerSubtext": "", "correctAnswerOptionId": 179 }
+  ]
+}

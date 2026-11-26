@@ -55,6 +55,11 @@ namespace lan_box_party_pack.server.Questions
 
             return Directory
                 .GetFiles(_questionsDirectory, "*.json")
+                .Where(path => !string.Equals(
+                    Path.GetFileName(path), 
+                    "AnswerOptions.json", 
+                    StringComparison.OrdinalIgnoreCase
+                ))
                 .Select(path =>
                 {
                     var fileName = Path.GetFileName(path);
@@ -72,6 +77,23 @@ namespace lan_box_party_pack.server.Questions
                 })
                 .OrderBy(set => set.Title)
                 .ToList();
+        }
+
+        public List<AnswerOption> GetAnswerOptions()
+        {
+            var path = Path.Combine(_questionsDirectory, "AnswerOptions.json");
+
+            if (!File.Exists(path))
+            {
+                return [];
+            }
+
+            var json = File.ReadAllText(path);
+
+            return JsonSerializer.Deserialize<List<AnswerOption>>(
+                json,
+                _jsonOptions
+            ) ?? [];
         }
     }
 }

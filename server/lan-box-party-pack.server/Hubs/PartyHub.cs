@@ -2,10 +2,13 @@
 using lan_box_party_pack.server.Players;
 using lan_box_party_pack.server.Questions;
 using Microsoft.AspNetCore.SignalR;
+using SignalRSwaggerGen.Attributes;
+using SignalRSwaggerGen.Enums;
 
 namespace lan_box_party_pack.server.Hubs
 {
-    public class PartyHub : Hub
+    [SignalRHub(path: "/partyHub", autoDiscover: AutoDiscover.MethodsAndParams)]
+    public class PartyHub : Hub<IPartyClient>
     {
         private const string RoomGroup = "main-room";
 
@@ -22,6 +25,7 @@ namespace lan_box_party_pack.server.Hubs
             _logger = logger;
         }
 
+        [SignalRHidden]
         public override async Task OnConnectedAsync()
         {
             var httpContext = Context.GetHttpContext();
@@ -37,6 +41,7 @@ namespace lan_box_party_pack.server.Hubs
             await base.OnConnectedAsync();
         }
 
+        [SignalRMethod(summary: "Subscribe to room and host-screen updates and receive the current room snapshot.")]
         public async Task WatchRoom()
         {
             _logger.LogInformation(
@@ -54,6 +59,7 @@ namespace lan_box_party_pack.server.Hubs
             await SendRoomSnapshotToCaller();
         }
 
+        [SignalRMethod(summary: "Join or reconnect a player and subscribe to room updates.")]
         public async Task JoinRoom(string playerId, string playerName, string color)
         {
             _logger.LogInformation(
@@ -88,7 +94,7 @@ namespace lan_box_party_pack.server.Hubs
         {
             var snapshot = CreateRoomSnapshot();
 
-            await Clients.Caller.SendAsync("RoomUpdated", snapshot);
+            await Clients.Caller.RoomUpdated(snapshot);
         }
 
         private async Task BroadcastRoomSnapshot()
@@ -96,7 +102,7 @@ namespace lan_box_party_pack.server.Hubs
             var snapshot = CreateRoomSnapshot();
 
             await Clients.Group(RoomGroup)
-                .SendAsync("RoomUpdated", snapshot);
+                .RoomUpdated(snapshot);
         }
 
         private RoomSnapshot CreateRoomSnapshot()
@@ -108,6 +114,7 @@ namespace lan_box_party_pack.server.Hubs
             };
         }
 
+        [SignalRHidden]
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
             if (exception is null)
@@ -131,6 +138,7 @@ namespace lan_box_party_pack.server.Hubs
             await base.OnDisconnectedAsync(exception);
         }
 
+        [SignalRMethod(summary: "Start a new game from a question-set JSON filename.")]
         public async Task StartNewGame(string fileName)
         {
             var questionSet = _questionRepository.Load(fileName);
@@ -143,6 +151,7 @@ namespace lan_box_party_pack.server.Hubs
             await BroadcastRoomSnapshot();
         }
 
+        [SignalRMethod(summary: "Start the current question.")]
         public async Task StartQuestion()
         {
             _gameManager.StartQuestion();
@@ -150,6 +159,7 @@ namespace lan_box_party_pack.server.Hubs
             await BroadcastRoomSnapshot();
         }
 
+        [SignalRMethod(summary: "Reveal the current question's answer.")]
         public async Task RevealAnswer()
         {
             _gameManager.RevealAnswer();
@@ -157,6 +167,7 @@ namespace lan_box_party_pack.server.Hubs
             await BroadcastRoomSnapshot();
         }
 
+        [SignalRMethod(summary: "Advance to the next question.")]
         public async Task AdvanceQuestion()
         {
             _gameManager.AdvanceQuestion();
@@ -164,7 +175,8 @@ namespace lan_box_party_pack.server.Hubs
             await BroadcastRoomSnapshot();
         }
 
-        public async Task SubmitAnswer(string answer)
+        [SignalRMethod(summary: "Submit an answer option for the connected player; the player must have joined the room.")]
+        public async Task SubmitAnswer(int answerOptionId)
         {
             var player = _playerManager.GetPlayerByConnection(
                 Context.ConnectionId
@@ -177,23 +189,61 @@ namespace lan_box_party_pack.server.Hubs
                 );
             }
 
-            var submission = _gameManager.SubmitAnswer(player, answer);
+            var submission = _gameManager.SubmitAnswer(player, answerOptionId);
 
-            // Send feedback privately to the player who submitted.
-            await Clients.Caller.SendAsync("AnswerResult", submission);
+            var answerOption = _questionRepository
+                .GetAnswerOptions()
+                .FirstOrDefault(option => option.Id == answerOptionId);
 
-            // Send the submission to the host screen.
-            await Clients.Group("host-screen").SendAsync(
-                "PlayerAnswerSubmitted",
-                submission
+            submission.Answer = answerOption?.DisplayName ?? $"Unknown option ({answerOptionId})";
+
+            _logger.LogInformation(
+                "Answer from {PlayerName}: Option {AnswerOptionId}, Video timestamp: {VideoTimestampSeconds:F2}s",
+                submission.PlayerName,
+                submission.AnswerOptionId,
+                submission.VideoTimestampSeconds
             );
+
+            await Clients.Caller.AnswerResult(submission);
+
+            await Clients.Group("host-screen")
+                .PlayerAnswerSubmitted(submission);
         }
 
+        [SignalRMethod(summary: "Get the available question-set summaries.")]
         public Task<List<QuestionSetSummary>> GetQuestionSets()
         {
             return Task.FromResult(
                 _questionRepository.GetAvailableQuestionSets()
             );
+        }
+
+        [SignalRMethod(summary: "End playback at the supplied video timestamp.")]
+        public async Task EndPlayback(double videoTimestampSeconds)
+        {
+            _gameManager.EndPlayback(videoTimestampSeconds);
+
+            await BroadcastRoomSnapshot();
+        }
+
+        [SignalRMethod(summary: "Update playback timestamp and playing state.")]
+        public async Task UpdatePlayback(double videoTimestampSeconds, bool isPlaying)
+        {
+            var playbackStateChanged = _gameManager.UpdatePlayback(
+                videoTimestampSeconds,
+                isPlaying
+            );
+
+            if (playbackStateChanged)
+            {
+                await BroadcastRoomSnapshot();
+            }
+        }
+
+        [SignalRMethod(summary: "Get all configured answer options.")]
+        public List<AnswerOption> GetAnswerOptions()
+        {
+            return _questionRepository.GetAnswerOptions();
         }
     }
 }

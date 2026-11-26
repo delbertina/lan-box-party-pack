@@ -12,6 +12,9 @@ public interface IPartyClient
 
     [SignalRServerEvent("host-screen group; connections join this group by invoking WatchRoom.")]
     Task PlayerAnswerSubmitted(AnswerSubmission submission);
+
+    [SignalRServerEvent("Only the player being kicked, timed out, or banned.")]
+    Task PlayerDisconnected(string reason);
 }
 
 [AttributeUsage(AttributeTargets.Method)]

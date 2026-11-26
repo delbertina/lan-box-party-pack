@@ -7,7 +7,7 @@ import {
   HubConnectionBuilder
 } from '@microsoft/signalr'
 
-import type { AnswerOption, AnswerSubmission, QuestionSetSummary, RoomSnapshot } from './lib/types'
+import type { AnswerOption, AnswerSubmission, ModerationSnapshot, QuestionSetSummary, RoomSnapshot } from './lib/types'
 import ReactPlayerImport from 'react-player'
 // todo fix this by updating react-player to a version that has proper ESM support, then remove this workaround
 const ReactPlayer =
@@ -19,6 +19,7 @@ function App() {
 
   const connectionRef = useRef<HubConnection | null>(null)
   const currentQuestionKeyRef = useRef<string | null>(null)
+  const moderationPlayersKeyRef = useRef('')
   const playerRef = useRef<ReactPlayerImport | null>(null)
   const playbackIsAdvancingRef = useRef(false)
 
@@ -30,6 +31,9 @@ function App() {
   const [joined, setJoined] = useState(false)
 
   const [room, setRoom] = useState<RoomSnapshot | null>(null)
+  const [moderation, setModeration] = useState<ModerationSnapshot | null>(null)
+  const [moderationReason, setModerationReason] = useState('')
+  const [timeoutMinutes, setTimeoutMinutes] = useState(5)
   const [error, setError] = useState('')
   const [playingQuestionKey, setPlayingQuestionKey] = useState<string | null>(null)
   const [playbackStatus, setPlaybackStatus] = useState('Ready')
@@ -44,6 +48,16 @@ function App() {
   const [countdownNow, setCountdownNow] = useState(Date.now())
   const [answerOptions, setAnswerOptions] = useState<AnswerOption[]>([])
   const [selectedAnswerOptionId, setSelectedAnswerOptionId] = useState<number | null>(null)
+
+  async function refreshModerationState(connection: HubConnection) {
+    try {
+      const state = await connection.invoke<ModerationSnapshot>('GetModerationState')
+      setModeration(state)
+    } catch (err) {
+      console.error('Could not load moderation state:', err)
+      setError('Could not load player moderation details.')
+    }
+  }
 
   const currentClipKey = room?.game.gameSessionId
     ? `${room.game.gameSessionId}-${room.game.currentQuestionIndex}`
@@ -195,6 +209,26 @@ function App() {
       }
 
       setRoom(snapshot)
+
+      if (isHost) {
+        const playersKey = snapshot.players
+          .map(player => `${player.id}:${player.name}:${player.isConnected}`)
+          .sort()
+          .join('|')
+
+        if (playersKey !== moderationPlayersKeyRef.current) {
+          moderationPlayersKeyRef.current = playersKey
+          void refreshModerationState(connection)
+        }
+      }
+    })
+
+    connection.on('PlayerDisconnected', (reason: string) => {
+      setError(reason)
+      setJoined(false)
+      void connection.stop().catch(err => {
+        console.error('Could not close the moderated player connection:', err)
+      })
     })
 
     connection.on('AnswerResult', (result: AnswerSubmission) => {
@@ -216,6 +250,7 @@ function App() {
         if (isHost) {
           await connection.invoke('WatchRoom')
           await loadQuestionSets()
+          await refreshModerationState(connection)
         } else {
           await restorePlayer()
         }
@@ -240,6 +275,7 @@ function App() {
         if (isHost) {
           await connection.invoke('WatchRoom')
           await loadQuestionSets()
+          await refreshModerationState(connection)
         } else {
           await restorePlayer()
         }
@@ -266,17 +302,38 @@ function App() {
     return () => window.clearInterval(interval)
   }, [room?.game.phaseEndsAt])
 
+  useEffect(() => {
+    if (!moderation?.punishments.some(punishment =>
+      punishment.expiresAt !== null &&
+      punishment.revokedAt === null &&
+      Date.parse(punishment.expiresAt) > countdownNow
+    )) {
+      return
+    }
+
+    const interval = window.setInterval(() => setCountdownNow(Date.now()), 1000)
+    return () => window.clearInterval(interval)
+  }, [countdownNow, moderation?.punishments])
+
   async function joinGame() {
     if (!playerName.trim()) return
 
     const connection = connectionRef.current
 
-    if (!connection || connection.state !== 'Connected') {
+    if (!connection) {
       setError('Not connected to the game server. Please wait and try again.')
       return
     }
 
     try {
+      if (connection.state === 'Disconnected') {
+        await connection.start()
+        setConnected(true)
+      } else if (connection.state !== 'Connected') {
+        setError('Not connected to the game server. Please wait and try again.')
+        return
+      }
+
       let playerId = localStorage.getItem('partyGamePlayerId')
 
       if (!playerId) {
@@ -310,6 +367,56 @@ function App() {
         err instanceof Error
           ? `Could not join: ${err.message}`
           : `Could not join: ${String(err)}`
+      )
+    }
+  }
+
+  async function applyPlayerPunishment(
+    method: 'KickPlayer' | 'TimeoutPlayer' | 'BanPlayer',
+    playerId: string
+  ) {
+    const connection = connectionRef.current
+    if (!connection || connection.state !== 'Connected') {
+      setError('Not connected to the game server. Please wait and try again.')
+      return
+    }
+
+    try {
+      if (method === 'TimeoutPlayer') {
+        await connection.invoke(method, playerId, timeoutMinutes, moderationReason)
+      } else {
+        await connection.invoke(method, playerId, moderationReason)
+      }
+
+      setError('')
+      await refreshModerationState(connection)
+    } catch (err) {
+      console.error(`Could not ${method}:`, err)
+      setError(
+        err instanceof Error
+          ? `Could not ${method}: ${err.message}`
+          : `Could not ${method}: ${String(err)}`
+      )
+    }
+  }
+
+  async function revokePunishment(punishmentId: string) {
+    const connection = connectionRef.current
+    if (!connection || connection.state !== 'Connected') {
+      setError('Not connected to the game server. Please wait and try again.')
+      return
+    }
+
+    try {
+      await connection.invoke('RevokePunishment', punishmentId)
+      setError('')
+      await refreshModerationState(connection)
+    } catch (err) {
+      console.error('Could not revoke punishment:', err)
+      setError(
+        err instanceof Error
+          ? `Could not revoke punishment: ${err.message}`
+          : `Could not revoke punishment: ${String(err)}`
       )
     }
   }
@@ -443,6 +550,108 @@ function App() {
             {player.name} — {player.isConnected ? 'Connected' : 'Disconnected'}
           </p>
         ))}
+
+        <h2>Manage players</h2>
+        <label>
+          Reason{' '}
+          <input
+            value={moderationReason}
+            onChange={event => setModerationReason(event.target.value)}
+            placeholder="Optional reason"
+          />
+        </label>{' '}
+        <label>
+          Timeout duration{' '}
+          <select
+            value={timeoutMinutes}
+            onChange={event => setTimeoutMinutes(Number(event.target.value))}
+          >
+            <option value={1}>1 minute</option>
+            <option value={5}>5 minutes</option>
+            <option value={15}>15 minutes</option>
+            <option value={60}>1 hour</option>
+            <option value={1440}>1 day</option>
+          </select>
+        </label>
+
+        {moderation?.players.map(player => {
+          const hasSharedIp = player.ipAddress !== null &&
+            moderation.players.some(other =>
+              other.id !== player.id && other.ipAddress === player.ipAddress
+            )
+
+          return (
+            <div key={player.id} style={{ margin: '12px 0', padding: 12, border: '1px solid #888' }}>
+              <strong>{player.name}</strong> — {player.isConnected ? 'Connected' : 'Disconnected'}
+              <p>
+                IP: {player.ipAddress ?? 'Unavailable'} — {
+                  player.ipAddress === null
+                    ? 'IP moderation unavailable'
+                    : hasSharedIp
+                      ? 'shared address; punishments use player ID only'
+                      : 'unique address; punishments also apply to this IP'
+                }
+              </p>
+              <button
+                type="button"
+                disabled={!connected || !player.isConnected}
+                onClick={() => void applyPlayerPunishment('KickPlayer', player.id)}
+              >
+                Kick
+              </button>{' '}
+              <button
+                type="button"
+                disabled={!connected}
+                onClick={() => void applyPlayerPunishment('TimeoutPlayer', player.id)}
+              >
+                Timeout
+              </button>{' '}
+              <button
+                type="button"
+                disabled={!connected}
+                onClick={() => void applyPlayerPunishment('BanPlayer', player.id)}
+              >
+                Ban
+              </button>
+            </div>
+          )
+        })}
+
+        <h3>Punishment history</h3>
+        {moderation?.punishments.length ? (
+          [...moderation.punishments]
+            .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+            .map(punishment => {
+              const isExpired = punishment.expiresAt !== null &&
+                Date.parse(punishment.expiresAt) <= countdownNow
+              const isActive = punishment.revokedAt === null && !isExpired
+              const status = punishment.revokedAt
+                ? 'Revoked'
+                : isExpired
+                  ? 'Expired'
+                  : 'Active'
+
+              return (
+                <div key={punishment.id} style={{ margin: '8px 0' }}>
+                  <strong>{punishment.type}</strong> for {punishment.playerName} — {status}
+                  {punishment.ipAddress && <span> (IP {punishment.ipAddress})</span>}
+                  {punishment.expiresAt && <span> — expires {new Date(punishment.expiresAt).toLocaleString()}</span>}
+                  {punishment.reason && <p>Reason: {punishment.reason}</p>}
+                  {isActive && (
+                    <button
+                      type="button"
+                      disabled={!connected}
+                      onClick={() => void revokePunishment(punishment.id)}
+                    >
+                      Revoke
+                    </button>
+                  )}
+                </div>
+              )
+            })
+        ) : (
+          <p>No timeouts or bans have been recorded.</p>
+        )}
 
         <h2>Scoreboard</h2>
 
@@ -825,7 +1034,7 @@ function App() {
 
           <button
             onClick={joinGame}
-            disabled={!connected || !playerName.trim()}
+            disabled={!playerName.trim()}
           >
             Join
           </button>

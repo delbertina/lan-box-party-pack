@@ -13,13 +13,15 @@ namespace lan_box_party_pack.server.Hubs
         private const string RoomGroup = "main-room";
 
         private readonly PlayerManager _playerManager;
+        private readonly PlayerPunishmentManager _punishmentManager;
         private readonly GameManager _gameManager;
         private readonly QuestionRepository _questionRepository;
         private readonly ILogger<PartyHub> _logger;
 
-        public PartyHub(PlayerManager playerManager, GameManager gameManager, QuestionRepository questionRepository, ILogger<PartyHub> logger)
+        public PartyHub(PlayerManager playerManager, PlayerPunishmentManager punishmentManager, GameManager gameManager, QuestionRepository questionRepository, ILogger<PartyHub> logger)
         {
             _playerManager = playerManager;
+            _punishmentManager = punishmentManager;
             _gameManager = gameManager;
             _questionRepository = questionRepository;
             _logger = logger;
@@ -62,13 +64,35 @@ namespace lan_box_party_pack.server.Hubs
         [SignalRMethod(summary: "Join or reconnect a player and subscribe to room updates.")]
         public async Task JoinRoom(string playerId, string playerName, string color)
         {
+            var remoteIp = GetRemoteIpAddress();
+
             _logger.LogInformation(
-                "JoinRoom requested. ConnectionId: {ConnectionId}, PlayerId: {PlayerId}, PlayerName: {PlayerName}, Color: {Color}, Room: {Room}",
+                "JoinRoom requested. ConnectionId: {ConnectionId}, PlayerId: {PlayerId}, PlayerName: {PlayerName}, Color: {Color}, RemoteIp: {RemoteIp}, Room: {Room}",
                 Context.ConnectionId,
                 playerId,
                 playerName,
                 color,
+                remoteIp ?? "unknown",
                 RoomGroup);
+
+            var activePunishment = _punishmentManager.FindActive(playerId, remoteIp);
+            if (activePunishment is not null)
+            {
+                var punishmentDescription = activePunishment.Type == PunishmentType.Ban
+                    ? "You are banned from this game."
+                    : $"You are timed out until {activePunishment.ExpiresAt:O}.";
+                var reasonDescription = string.IsNullOrWhiteSpace(activePunishment.Reason)
+                    ? ""
+                    : $" Reason: {activePunishment.Reason}";
+
+                _logger.LogWarning(
+                    "Blocked join for PlayerId: {PlayerId}, RemoteIp: {RemoteIp}, PunishmentId: {PunishmentId}",
+                    playerId,
+                    remoteIp ?? "unknown",
+                    activePunishment.Id);
+
+                throw new HubException(punishmentDescription + reasonDescription);
+            }
 
             await Groups.AddToGroupAsync(
                 Context.ConnectionId,
@@ -79,7 +103,8 @@ namespace lan_box_party_pack.server.Hubs
                 playerId,
                 playerName,
                 color,
-                Context.ConnectionId
+                Context.ConnectionId,
+                remoteIp
             );
 
             await BroadcastRoomSnapshot();
@@ -88,6 +113,185 @@ namespace lan_box_party_pack.server.Hubs
                 "JoinRoom completed. ConnectionId: {ConnectionId}, PlayerId: {PlayerId}",
                 Context.ConnectionId,
                 playerId);
+        }
+
+        [SignalRMethod(summary: "Update the calling player's name and color.")]
+        public async Task UpdateMyProfile(string playerName, string color)
+        {
+            var player = _playerManager.GetPlayerByConnection(Context.ConnectionId);
+            if (player is null)
+            {
+                throw new InvalidOperationException(
+                    "You must join the room before updating your profile."
+                );
+            }
+
+            UpdatePlayerProfileCore(player.Id, playerName, color);
+            await BroadcastRoomSnapshot();
+        }
+
+        [SignalRMethod(summary: "Update a player's name and color from the host screen.")]
+        public async Task UpdatePlayerProfile(string playerId, string playerName, string color)
+        {
+            UpdatePlayerProfileCore(playerId, playerName, color);
+            await BroadcastRoomSnapshot();
+        }
+
+        private void UpdatePlayerProfileCore(string playerId, string playerName, string color)
+        {
+            if (string.IsNullOrWhiteSpace(playerName))
+            {
+                throw new InvalidOperationException("Player name cannot be empty.");
+            }
+
+            if (string.IsNullOrWhiteSpace(color))
+            {
+                throw new InvalidOperationException("Player color cannot be empty.");
+            }
+
+            var player = _playerManager.UpdateProfile(
+                playerId,
+                playerName.Trim(),
+                color
+            );
+
+            if (player is null)
+            {
+                throw new InvalidOperationException("Player was not found.");
+            }
+        }
+
+        [SignalRMethod(summary: "Get players, their observed IP addresses, and in-memory punishments.")]
+        public ModerationSnapshot GetModerationState()
+        {
+            return new ModerationSnapshot
+            {
+                Players = _playerManager.ModerationPlayers,
+                Punishments = _punishmentManager.Punishments
+            };
+        }
+
+        [SignalRMethod(summary: "Disconnect a player without preventing them from rejoining.")]
+        public async Task KickPlayer(string playerId, string reason)
+        {
+            var player = GetPlayerForPunishment(playerId);
+            await DisconnectPlayer(player, FormatModerationMessage("You were kicked from the game.", reason));
+        }
+
+        [SignalRMethod(summary: "Disconnect a player and prevent rejoining for a number of minutes.")]
+        public async Task TimeoutPlayer(string playerId, int durationMinutes, string reason)
+        {
+            if (durationMinutes is < 1 or > 10080)
+            {
+                throw new InvalidOperationException("Timeout duration must be between 1 and 10080 minutes.");
+            }
+
+            var player = GetPlayerForPunishment(playerId);
+            var expiresAt = DateTimeOffset.UtcNow.AddMinutes(durationMinutes);
+            var ipAddress = GetUniquePlayerIpAddress(playerId);
+            var normalizedReason = string.IsNullOrWhiteSpace(reason) ? "" : reason.Trim();
+            _punishmentManager.Add(
+                player.Id,
+                player.Name,
+                ipAddress,
+                PunishmentType.Timeout,
+                normalizedReason,
+                expiresAt
+            );
+
+            await DisconnectPlayer(
+                player,
+                FormatModerationMessage($"You were timed out until {expiresAt:O}.", reason)
+            );
+        }
+
+        [SignalRMethod(summary: "Permanently ban a player until the punishment is revoked or the server restarts.")]
+        public async Task BanPlayer(string playerId, string reason)
+        {
+            var player = GetPlayerForPunishment(playerId);
+            var ipAddress = GetUniquePlayerIpAddress(playerId);
+            var normalizedReason = string.IsNullOrWhiteSpace(reason) ? "" : reason.Trim();
+            _punishmentManager.Add(
+                player.Id,
+                player.Name,
+                ipAddress,
+                PunishmentType.Ban,
+                normalizedReason,
+                null
+            );
+
+            await DisconnectPlayer(
+                player,
+                FormatModerationMessage("You were banned from the game.", reason)
+            );
+        }
+
+        [SignalRMethod(summary: "Revoke a timeout or ban by punishment ID.")]
+        public async Task RevokePunishment(string punishmentId)
+        {
+            if (!Guid.TryParse(punishmentId, out var id) || !_punishmentManager.Revoke(id))
+            {
+                throw new InvalidOperationException("Active punishment was not found.");
+            }
+
+            await Clients.Group(RoomGroup).RoomUpdated(CreateRoomSnapshot());
+        }
+
+        private Player GetPlayerForPunishment(string playerId)
+        {
+            return _playerManager.GetPlayer(playerId)
+                ?? throw new InvalidOperationException("Player was not found.");
+        }
+
+        private string? GetUniquePlayerIpAddress(string playerId)
+        {
+            var ipAddress = _playerManager.GetIpAddress(playerId);
+            return ipAddress is not null &&
+                _playerManager.IsIpAddressUniqueToPlayer(playerId, ipAddress)
+                    ? ipAddress
+                    : null;
+        }
+
+        private async Task DisconnectPlayer(Player player, string reason)
+        {
+            var connectionIds = _playerManager.DisconnectPlayer(player.Id);
+            foreach (var connectionId in connectionIds)
+            {
+                await Groups.RemoveFromGroupAsync(connectionId, RoomGroup);
+                await Groups.RemoveFromGroupAsync(connectionId, "host-screen");
+                await Clients.Client(connectionId).PlayerDisconnected(reason);
+            }
+
+            _logger.LogInformation(
+                "Disconnected PlayerId: {PlayerId}, PlayerName: {PlayerName}, ConnectionCount: {ConnectionCount}",
+                player.Id,
+                player.Name,
+                connectionIds.Count);
+
+            await BroadcastRoomSnapshot();
+        }
+
+        private static string FormatModerationMessage(string message, string reason)
+        {
+            return string.IsNullOrWhiteSpace(reason)
+                ? message
+                : $"{message} Reason: {reason.Trim()}";
+        }
+
+        private string? GetRemoteIpAddress()
+        {
+            var remoteIp = Context.GetHttpContext()?.Connection.RemoteIpAddress;
+            if (remoteIp is null)
+            {
+                return null;
+            }
+
+            if (remoteIp.IsIPv4MappedToIPv6)
+            {
+                remoteIp = remoteIp.MapToIPv4();
+            }
+
+            return remoteIp.ToString();
         }
 
         private async Task SendRoomSnapshotToCaller()

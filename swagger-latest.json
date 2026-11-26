@@ -2,7 +2,7 @@
   "openapi": "3.0.4",
   "info": {
     "title": "lan-box-party-pack SignalR contract",
-    "description": "SignalR hub invocation documentation for /partyHub. These generated operations describe SignalR client invocations; they are not HTTP endpoints. Connect with a SignalR client and invoke the listed hub methods. Server-to-client events are RoomUpdated (RoomSnapshot), AnswerResult (AnswerSubmission, caller only), and PlayerAnswerSubmitted (AnswerSubmission, host-screen group).",
+    "description": "SignalR hub invocation documentation for /partyHub. These generated operations describe SignalR client invocations; they are not HTTP endpoints. Connect with a SignalR client and invoke the listed hub methods. Server-to-client events are RoomUpdated (RoomSnapshot), AnswerResult (AnswerSubmission, caller only), PlayerAnswerSubmitted (AnswerSubmission, host-screen group), and PlayerDisconnected (moderated player only).",
     "version": "v1"
   },
   "paths": {
@@ -199,6 +199,31 @@
         "responses": { }
       }
     },
+    "/partyHub/UpdateMyProfile": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "Update the calling player's name and color.",
+        "parameters": [
+          {
+            "name": "playerName",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "color",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": { }
+      }
+    },
     "/partyHub/UpdatePlayback": {
       "post": {
         "tags": [
@@ -220,6 +245,140 @@
             "schema": {
               "type": "boolean"
             }
+          }
+        ],
+        "responses": { }
+      }
+    },
+    "/partyHub/UpdatePlayerProfile": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "Update a player's name and color from the host screen.",
+        "parameters": [
+          {
+            "name": "playerId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerName",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "color",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": { }
+      }
+    },
+    "/partyHub/BanPlayer": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "Permanently ban a player until the punishment is revoked or the server restarts.",
+        "parameters": [
+          {
+            "name": "playerId",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": { }
+      }
+    },
+    "/partyHub/GetModerationState": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "Get players, their observed IP addresses, and in-memory punishments.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ModerationSnapshot" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/partyHub/KickPlayer": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "Disconnect a player without preventing them from rejoining.",
+        "parameters": [
+          {
+            "name": "playerId",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": { }
+      }
+    },
+    "/partyHub/RevokePunishment": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "Revoke a timeout or ban by punishment ID.",
+        "parameters": [
+          {
+            "name": "punishmentId",
+            "in": "query",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": { }
+      }
+    },
+    "/partyHub/TimeoutPlayer": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "Disconnect a player and prevent rejoining for a number of minutes.",
+        "parameters": [
+          {
+            "name": "playerId",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "durationMinutes",
+            "in": "query",
+            "schema": { "type": "integer", "format": "int32" }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "schema": { "type": "string" }
           }
         ],
         "responses": { }
@@ -430,6 +589,51 @@
         },
         "additionalProperties": false
       },
+      "ModerationSnapshot": {
+        "type": "object",
+        "properties": {
+          "players": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PlayerModerationInfo" },
+            "nullable": true
+          },
+          "punishments": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PlayerPunishment" },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlayerModerationInfo": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "nullable": true },
+          "name": { "type": "string", "nullable": true },
+          "isConnected": { "type": "boolean" },
+          "ipAddress": { "type": "string", "nullable": true }
+        },
+        "additionalProperties": false
+      },
+      "PlayerPunishment": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "playerId": { "type": "string", "nullable": true },
+          "playerName": { "type": "string", "nullable": true },
+          "ipAddress": { "type": "string", "nullable": true },
+          "type": { "$ref": "#/components/schemas/PunishmentType" },
+          "reason": { "type": "string", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "expiresAt": { "type": "string", "format": "date-time", "nullable": true },
+          "revokedAt": { "type": "string", "format": "date-time", "nullable": true }
+        },
+        "additionalProperties": false
+      },
+      "PunishmentType": {
+        "type": "string",
+        "enum": [ "Timeout", "Ban" ]
+      },
       "QuestionPrompt": {
         "type": "object",
         "properties": {
@@ -538,6 +742,14 @@
         "$ref": "#/components/schemas/AnswerSubmission"
       },
       "delivery": "host-screen group; connections join this group by invoking WatchRoom."
+    },
+    {
+      "name": "PlayerDisconnected",
+      "description": "Server-to-client SignalR event. Payload type: string.",
+      "payloadSchema": {
+        "type": "string"
+      },
+      "delivery": "Only the player being kicked, timed out, or banned."
     }
   ]
 }

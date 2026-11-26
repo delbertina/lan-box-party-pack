@@ -9,6 +9,32 @@ export interface Player {
   isConnected: boolean
 }
 
+export interface PlayerModerationInfo {
+  id: string
+  name: string
+  isConnected: boolean
+  ipAddress: string | null
+}
+
+export type PunishmentType = 'Timeout' | 'Ban'
+
+export interface PlayerPunishment {
+  id: string
+  playerId: string
+  playerName: string
+  ipAddress: string | null
+  type: PunishmentType
+  reason: string
+  createdAt: string
+  expiresAt: string | null
+  revokedAt: string | null
+}
+
+export interface ModerationSnapshot {
+  players: PlayerModerationInfo[]
+  punishments: PlayerPunishment[]
+}
+
 export interface QuestionVideo {
   youTubeId: string
   startTime: number

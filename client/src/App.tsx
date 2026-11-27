@@ -32,6 +32,8 @@ function App() {
 
   const [room, setRoom] = useState<RoomSnapshot | null>(null)
   const [moderation, setModeration] = useState<ModerationSnapshot | null>(null)
+  const [playerNameDrafts, setPlayerNameDrafts] = useState<Record<string, string>>({})
+  const [scoreAdjustment, setScoreAdjustment] = useState(5)
   const [moderationReason, setModerationReason] = useState('')
   const [timeoutMinutes, setTimeoutMinutes] = useState(5)
   const [error, setError] = useState('')
@@ -212,7 +214,7 @@ function App() {
 
       if (isHost) {
         const playersKey = snapshot.players
-          .map(player => `${player.id}:${player.name}:${player.isConnected}`)
+          .map(player => `${player.id}:${player.name}:${player.nameLocked}:${player.isConnected}`)
           .sort()
           .join('|')
 
@@ -421,6 +423,98 @@ function App() {
     }
   }
 
+  async function forcePlayerName(playerId: string, name: string, color: string) {
+    const connection = connectionRef.current
+    const normalizedName = name.trim()
+    if (!connection || connection.state !== 'Connected') {
+      setError('Not connected to the game server. Please wait and try again.')
+      return
+    }
+    if (!normalizedName) {
+      setError('Player name cannot be empty.')
+      return
+    }
+
+    try {
+      await connection.invoke('UpdatePlayerProfile', playerId, normalizedName, color)
+      setPlayerNameDrafts(previous => {
+        const next = { ...previous }
+        delete next[playerId]
+        return next
+      })
+      setError('')
+    } catch (err) {
+      console.error('Could not set player name:', err)
+      setError(
+        err instanceof Error
+          ? `Could not set player name: ${err.message}`
+          : `Could not set player name: ${String(err)}`
+      )
+    }
+  }
+
+  async function setPlayerNameLock(playerId: string, isLocked: boolean) {
+    const connection = connectionRef.current
+    if (!connection || connection.state !== 'Connected') {
+      setError('Not connected to the game server. Please wait and try again.')
+      return
+    }
+
+    try {
+      await connection.invoke('SetPlayerNameLock', playerId, isLocked)
+      setError('')
+    } catch (err) {
+      console.error('Could not change player name lock:', err)
+      setError(
+        err instanceof Error
+          ? `Could not change player name lock: ${err.message}`
+          : `Could not change player name lock: ${String(err)}`
+      )
+    }
+  }
+
+  async function adjustPlayerScore(playerId: string, delta: number) {
+    const connection = connectionRef.current
+    if (!connection || connection.state !== 'Connected') {
+      setError('Not connected to the game server. Please wait and try again.')
+      return
+    }
+
+    try {
+      await connection.invoke('AdjustPlayerScore', playerId, delta)
+      setError('')
+    } catch (err) {
+      console.error('Could not adjust player score:', err)
+      setError(
+        err instanceof Error
+          ? `Could not adjust player score: ${err.message}`
+          : `Could not adjust player score: ${String(err)}`
+      )
+    }
+  }
+
+  async function resetPlayerScore(playerId: string, playerName: string) {
+    if (!window.confirm(`Reset ${playerName}'s score to zero?`)) return
+
+    const connection = connectionRef.current
+    if (!connection || connection.state !== 'Connected') {
+      setError('Not connected to the game server. Please wait and try again.')
+      return
+    }
+
+    try {
+      await connection.invoke('ResetPlayerScore', playerId)
+      setError('')
+    } catch (err) {
+      console.error('Could not reset player score:', err)
+      setError(
+        err instanceof Error
+          ? `Could not reset player score: ${err.message}`
+          : `Could not reset player score: ${String(err)}`
+      )
+    }
+  }
+
   async function startNewGame() {
     if (!selectedQuestionSet) return
 
@@ -580,9 +674,11 @@ function App() {
               other.id !== player.id && other.ipAddress === player.ipAddress
             )
 
+          const nameDraft = playerNameDrafts[player.id] ?? player.name
+
           return (
             <div key={player.id} style={{ margin: '12px 0', padding: 12, border: '1px solid #888' }}>
-              <strong>{player.name}</strong> — {player.isConnected ? 'Connected' : 'Disconnected'}
+              <strong>{player.name}</strong> — {player.isConnected ? 'Connected' : 'Disconnected'} — {player.nameLocked ? 'Name locked' : 'Name unlocked'}
               <p>
                 IP: {player.ipAddress ?? 'Unavailable'} — {
                   player.ipAddress === null
@@ -592,6 +688,70 @@ function App() {
                       : 'unique address; punishments also apply to this IP'
                 }
               </p>
+              <label>
+                Set name{' '}
+                <input
+                  value={nameDraft}
+                  onChange={event => setPlayerNameDrafts(previous => ({
+                    ...previous,
+                    [player.id]: event.target.value
+                  }))}
+                />
+              </label>{' '}
+              <button
+                type="button"
+                disabled={!connected || !nameDraft.trim() || nameDraft.trim() === player.name}
+                onClick={() => void forcePlayerName(player.id, nameDraft, room?.players.find(item => item.id === player.id)?.color ?? '')}
+              >
+                Set name
+              </button>{' '}
+              <button
+                type="button"
+                disabled={!connected}
+                onClick={() => void setPlayerNameLock(player.id, !player.nameLocked)}
+              >
+                {player.nameLocked ? 'Unlock name' : 'Lock name'}
+              </button>
+              <p>
+                Score: {room?.game.scores[player.id] ?? 0}
+              </p>
+              <label>
+                Points per adjustment{' '}
+                <input
+                  type="number"
+                  min={1}
+                  max={1000}
+                  value={scoreAdjustment}
+                  onChange={event => {
+                    const value = Number(event.target.value)
+                    if (Number.isInteger(value) && value >= 1 && value <= 1000) {
+                      setScoreAdjustment(value)
+                    }
+                  }}
+                />
+              </label>{' '}
+              <button
+                type="button"
+                disabled={!connected || !room?.game.gameSessionId}
+                onClick={() => void adjustPlayerScore(player.id, scoreAdjustment)}
+              >
+                Add points
+              </button>{' '}
+              <button
+                type="button"
+                disabled={!connected || !room?.game.gameSessionId}
+                onClick={() => void adjustPlayerScore(player.id, -scoreAdjustment)}
+              >
+                Remove points
+              </button>{' '}
+              <button
+                type="button"
+                disabled={!connected || !room?.game.gameSessionId || (room?.game.scores[player.id] ?? 0) === 0}
+                onClick={() => void resetPlayerScore(player.id, player.name)}
+              >
+                Reset score
+              </button>
+              <p />
               <button
                 type="button"
                 disabled={!connected || !player.isConnected}

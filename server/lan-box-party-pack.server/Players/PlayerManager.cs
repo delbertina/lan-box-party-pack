@@ -29,7 +29,11 @@ namespace lan_box_party_pack.server.Players
                 }
             }
 
-            player.Name = name;
+            if (!player.NameLocked)
+            {
+                player.Name = name;
+            }
+
             player.Color = color;
             player.IsConnected = true;
 
@@ -70,6 +74,15 @@ namespace lan_box_party_pack.server.Players
             return player;
         }
 
+        public Player? SetNameLock(string playerId, bool isLocked)
+        {
+            if (!_players.TryGetValue(playerId, out var player))
+                return null;
+
+            player.NameLocked = isLocked;
+            return player;
+        }
+
         public string? GetIpAddress(string playerId) =>
             _playerIpAddresses.GetValueOrDefault(playerId);
 
@@ -90,6 +103,7 @@ namespace lan_box_party_pack.server.Players
                     Id = player.Id,
                     Name = player.Name,
                     IsConnected = player.IsConnected,
+                    NameLocked = player.NameLocked,
                     IpAddress = GetIpAddress(player.Id)
                 })
                 .ToArray();

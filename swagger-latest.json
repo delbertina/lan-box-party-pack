@@ -282,6 +282,27 @@
         "responses": { }
       }
     },
+    "/partyHub/SetPlayerNameLock": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "Lock or unlock a player's name from the host screen.",
+        "parameters": [
+          {
+            "name": "playerId",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "isLocked",
+            "in": "query",
+            "schema": { "type": "boolean" }
+          }
+        ],
+        "responses": { }
+      }
+    },
     "/partyHub/BanPlayer": {
       "post": {
         "tags": [
@@ -377,6 +398,43 @@
           },
           {
             "name": "reason",
+            "in": "query",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": { }
+      }
+    },
+    "/partyHub/AdjustPlayerScore": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "Adjust a player's score by a signed point amount; scores cannot go below zero.",
+        "parameters": [
+          {
+            "name": "playerId",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "delta",
+            "in": "query",
+            "schema": { "type": "integer", "format": "int32" }
+          }
+        ],
+        "responses": { }
+      }
+    },
+    "/partyHub/ResetPlayerScore": {
+      "post": {
+        "tags": [
+          "PartyHub"
+        ],
+        "summary": "Reset a player's score to zero.",
+        "parameters": [
+          {
+            "name": "playerId",
             "in": "query",
             "schema": { "type": "string" }
           }
@@ -583,6 +641,9 @@
             "type": "string",
             "nullable": true
           },
+          "nameLocked": {
+            "type": "boolean"
+          },
           "isConnected": {
             "type": "boolean"
           }
@@ -611,6 +672,7 @@
           "id": { "type": "string", "nullable": true },
           "name": { "type": "string", "nullable": true },
           "isConnected": { "type": "boolean" },
+          "nameLocked": { "type": "boolean" },
           "ipAddress": { "type": "string", "nullable": true }
         },
         "additionalProperties": false

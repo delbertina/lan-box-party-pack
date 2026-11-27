@@ -8,5 +8,7 @@ public sealed class PlayerModerationInfo
 
     public bool IsConnected { get; init; }
 
+    public bool NameLocked { get; init; }
+
     public string? IpAddress { get; init; }
 }

@@ -171,6 +171,31 @@ namespace lan_box_party_pack.server.Game
             }
         }
 
+        public int AdjustPlayerScore(string playerId, int delta)
+        {
+            if (delta == 0)
+            {
+                throw new InvalidOperationException("Score adjustment cannot be zero.");
+            }
+
+            lock (_stateLock)
+            {
+                State.Scores.TryGetValue(playerId, out var currentScore);
+                var updatedScore = Math.Clamp((long)currentScore + delta, 0, int.MaxValue);
+                State.Scores[playerId] = (int)updatedScore;
+                return (int)updatedScore;
+            }
+        }
+
+        public int ResetPlayerScore(string playerId)
+        {
+            lock (_stateLock)
+            {
+                State.Scores[playerId] = 0;
+                return 0;
+            }
+        }
+
         public AnswerSubmission SubmitAnswer(Player player, int submittedAnswerOptionId)
         {
             lock (_stateLock)

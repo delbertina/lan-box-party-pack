@@ -126,7 +126,18 @@ namespace lan_box_party_pack.server.Hubs
                 );
             }
 
-            UpdatePlayerProfileCore(player.Id, playerName, color);
+            if (string.IsNullOrWhiteSpace(playerName))
+            {
+                throw new HubException("Player name cannot be empty.");
+            }
+
+            var normalizedName = playerName.Trim();
+            if (player.NameLocked && !string.Equals(player.Name, normalizedName, StringComparison.Ordinal))
+            {
+                throw new HubException("Your name has been locked by the host.");
+            }
+
+            UpdatePlayerProfileCore(player.Id, normalizedName, color);
             await BroadcastRoomSnapshot();
         }
 
@@ -134,6 +145,18 @@ namespace lan_box_party_pack.server.Hubs
         public async Task UpdatePlayerProfile(string playerId, string playerName, string color)
         {
             UpdatePlayerProfileCore(playerId, playerName, color);
+            await BroadcastRoomSnapshot();
+        }
+
+        [SignalRMethod(summary: "Lock or unlock a player's name from the host screen.")]
+        public async Task SetPlayerNameLock(string playerId, bool isLocked)
+        {
+            var player = _playerManager.SetNameLock(playerId, isLocked);
+            if (player is null)
+            {
+                throw new InvalidOperationException("Player was not found.");
+            }
+
             await BroadcastRoomSnapshot();
         }
 
@@ -159,6 +182,27 @@ namespace lan_box_party_pack.server.Hubs
             {
                 throw new InvalidOperationException("Player was not found.");
             }
+        }
+
+        [SignalRMethod(summary: "Adjust a player's score by a signed point amount; scores cannot go below zero.")]
+        public async Task AdjustPlayerScore(string playerId, int delta)
+        {
+            if (delta == 0 || delta is < -100000 or > 100000)
+            {
+                throw new InvalidOperationException("Score adjustment must be between -100000 and 100000 and cannot be zero.");
+            }
+
+            GetPlayerForPunishment(playerId);
+            _gameManager.AdjustPlayerScore(playerId, delta);
+            await BroadcastRoomSnapshot();
+        }
+
+        [SignalRMethod(summary: "Reset a player's score to zero.")]
+        public async Task ResetPlayerScore(string playerId)
+        {
+            GetPlayerForPunishment(playerId);
+            _gameManager.ResetPlayerScore(playerId);
+            await BroadcastRoomSnapshot();
         }
 
         [SignalRMethod(summary: "Get players, their observed IP addresses, and in-memory punishments.")]

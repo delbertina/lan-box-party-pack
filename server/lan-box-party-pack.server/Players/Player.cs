@@ -8,6 +8,8 @@
 
         public string Color { get; set; } = "";
 
+        public bool NameLocked { get; set; }
+
         public bool IsConnected { get; set; } = true;
     }
 }

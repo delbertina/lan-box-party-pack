@@ -6,6 +6,7 @@ export interface Player {
   id: string
   name: string
   color: string
+  nameLocked: boolean
   isConnected: boolean
 }
 
@@ -13,6 +14,7 @@ export interface PlayerModerationInfo {
   id: string
   name: string
   isConnected: boolean
+  nameLocked: boolean
   ipAddress: string | null
 }
 
